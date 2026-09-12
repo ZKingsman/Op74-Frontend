@@ -1,8 +1,16 @@
 (function op74FloatingMusicPlayerBootstrap() {
   'use strict';
 
+  const SCRIPT_SOURCE_URL = (() => {
+    try {
+      return document.currentScript?.src || '';
+    } catch (_error) {
+      return '';
+    }
+  })();
+
   /**
-   * Op.74 野餐 · 悬浮音乐播放器（功能原型）
+   * Op.74 野餐 · 悬浮功能面板与音乐播放器（功能原型）
    *
    * 维护入口：通常只需要修改 USER_CONFIG。
    * 也可以在脚本执行前设置 window.OP74_FLOATING_MUSIC_CONFIG 覆盖同名字段。
@@ -11,6 +19,7 @@
     title: 'Op.74 音乐播放器',
     indexUrl: 'https://api.github.com/repos/ZKingsman/Op74-Recorder/git/trees/main?recursive=1',
     albumName: 'Op.74 Recorder',
+    mapDocument: './assets/russia-interactive-map.svg',
     headerImage: '',
     defaultCover: '',
     tracks: [
@@ -22,7 +31,7 @@
     requestTimeoutMs: 12000,
   };
 
-  const VERSION = '0.8.2';
+  const VERSION = '0.10.7';
   const RUNTIME_KEY = '__OP74_FLOATING_MUSIC_PLAYER__';
   const ROOT_ID = 'op74-fmp-root';
   const STYLE_ID = 'op74-fmp-style';
@@ -91,8 +100,10 @@
     const preferences = readPreferences(config);
     const state = {
       destroyed: false,
-      expanded: false,
+      surface: 'launcher',
       closing: false,
+      closingTarget: '',
+      closingShouldFocus: true,
       playlistExpanded: false,
       loading: false,
       waiting: false,
@@ -117,6 +128,7 @@
       loadController: null,
       drag: null,
       suppressLauncherClick: false,
+      suppressHubClick: false,
       resizeFrame: 0,
       trackMeasureFrame: 0,
       closeFallbackTimer: 0,
@@ -140,12 +152,17 @@
     const runtime = {
       version: VERSION,
       destroy,
-      open: () => setExpanded(true),
-      close: () => setExpanded(false),
+      open: () => openSurface('hub'),
+      openMap: () => openSurface('map'),
+      openMusic: () => openSurface('player'),
+      close: () => closeSurface('launcher'),
       reloadPlaylist: () => loadPlaylist(true),
       clearAudioCache,
       getState: () => ({
-        expanded: state.expanded,
+        surface: state.surface,
+        expanded: state.surface === 'player',
+        hubExpanded: state.surface === 'hub',
+        mapExpanded: state.surface === 'map',
         closing: state.closing,
         playlistExpanded: state.playlistExpanded,
         loading: state.loading,
@@ -194,6 +211,10 @@
         title: stringOrFallback(raw.title, '悬浮音乐播放器', 80),
         indexUrl: typeof raw.indexUrl === 'string' ? raw.indexUrl.trim() : '',
         albumName: typeof raw.albumName === 'string' ? raw.albumName.trim() : '',
+        mapDocument: normalizeMapDocumentUrl(
+          raw.mapDocument,
+          SCRIPT_SOURCE_URL || hostWindow.location.href,
+        ) || '',
         headerImage: normalizeImageUrl(
           raw.headerImage || raw.bannerImage || raw.heroImage,
           hostWindow.location.href,
@@ -253,12 +274,77 @@
 
       const launcher = element('button', 'op74-fmp-launcher');
       launcher.type = 'button';
-      launcher.title = '打开音乐播放器；可拖动';
-      launcher.setAttribute('aria-label', '打开悬浮音乐播放器');
-      launcher.setAttribute('aria-controls', 'op74-fmp-panel');
+      launcher.title = '打开功能面板；可拖动';
+      launcher.setAttribute('aria-label', '打开 Op.74 功能面板');
+      launcher.setAttribute('aria-controls', 'op74-fmp-hub');
       launcher.setAttribute('aria-expanded', 'false');
       launcher.appendChild(createStarburstMark('op74-fmp-launcher-mark'));
       root.appendChild(launcher);
+
+      const hub = element('section', 'op74-fmp-hub');
+      hub.id = 'op74-fmp-hub';
+      hub.hidden = true;
+      hub.setAttribute('role', 'region');
+      hub.setAttribute('aria-label', 'Op.74 功能面板');
+      const hubHeading = element('h2', 'op74-fmp-sr-only');
+      hubHeading.textContent = 'Op.74 功能面板';
+      const hubMenu = element('nav', 'op74-fmp-hub-menu');
+      hubMenu.setAttribute('aria-label', '功能选择');
+      const encyclopediaButton = featureButton('encyclopedia', '百科', 'encyclopedia');
+      const mapButton = featureButton('map', '地图', 'map');
+      const peopleButton = featureButton('people', '人们', 'people');
+      const chronicleButton = featureButton('chronicle', '行纪', 'chronicle');
+      const musicButton = featureButton('music', '音乐', 'music');
+      [encyclopediaButton, peopleButton, chronicleButton].forEach((button) => {
+        button.disabled = true;
+        button.setAttribute('aria-disabled', 'true');
+      });
+      mapButton.classList.add('is-ready');
+      mapButton.setAttribute('aria-controls', 'op74-fmp-map');
+      mapButton.setAttribute('aria-expanded', 'false');
+      musicButton.classList.add('is-ready');
+      musicButton.setAttribute('aria-controls', 'op74-fmp-panel');
+      musicButton.setAttribute('aria-expanded', 'false');
+      hubMenu.append(
+        encyclopediaButton,
+        mapButton,
+        peopleButton,
+        chronicleButton,
+        musicButton,
+      );
+      hub.append(hubHeading, hubMenu);
+      root.appendChild(hub);
+
+      const mapPanel = element('section', 'op74-fmp-map');
+      mapPanel.id = 'op74-fmp-map';
+      mapPanel.hidden = true;
+      mapPanel.setAttribute('role', 'region');
+      mapPanel.setAttribute('aria-label', '俄罗斯目标城市地图');
+      const mapHeading = element('h2', 'op74-fmp-sr-only');
+      mapHeading.textContent = '俄罗斯目标城市地图';
+      const mapToolbar = element('div', 'op74-fmp-map-toolbar');
+      const mapBackButton = iconButton('collapse', '返回功能面板');
+      mapBackButton.classList.add('op74-fmp-map-back');
+      mapToolbar.appendChild(mapBackButton);
+      const mapStage = element('div', 'op74-fmp-map-stage');
+      const mapObject = hostDocument.createElement('object');
+      mapObject.className = 'op74-fmp-map-object';
+      mapObject.type = 'image/svg+xml';
+      mapObject.setAttribute('aria-label', '俄罗斯行政区地图；悬停目标城市所属地区可高亮');
+      mapObject.tabIndex = 0;
+      const mapFallback = element('p', 'op74-fmp-map-fallback');
+      mapFallback.textContent = '地图资源未能载入';
+      mapObject.appendChild(mapFallback);
+      if (config.mapDocument) {
+        mapObject.data = config.mapDocument;
+      } else {
+        mapObject.hidden = true;
+        mapFallback.hidden = false;
+        mapStage.appendChild(mapFallback);
+      }
+      if (config.mapDocument) mapStage.appendChild(mapObject);
+      mapPanel.append(mapHeading, mapToolbar, mapStage);
+      root.appendChild(mapPanel);
 
       const panel = element('section', 'op74-fmp-panel');
       panel.id = 'op74-fmp-panel';
@@ -366,6 +452,17 @@
       return {
         root,
         launcher,
+        hub,
+        hubMenu,
+        encyclopediaButton,
+        mapButton,
+        peopleButton,
+        chronicleButton,
+        musicButton,
+        mapPanel,
+        mapToolbar,
+        mapBackButton,
+        mapObject,
         panel,
         dragSurface,
         closeButton,
@@ -400,6 +497,20 @@
       button.setAttribute('aria-label', label);
       button.title = label;
       setButtonIcon(button, icon);
+      return button;
+    }
+
+    function featureButton(feature, label, icon) {
+      const button = element('button', 'op74-fmp-hub-item');
+      button.type = 'button';
+      button.dataset.feature = feature;
+      button.setAttribute('aria-label', label);
+      button.title = label;
+      const iconWrap = element('span', 'op74-fmp-hub-item-icon');
+      iconWrap.appendChild(createControlIcon(icon));
+      const text = element('span', 'op74-fmp-hub-item-label');
+      text.textContent = label;
+      button.append(iconWrap, text);
       return button;
     }
 
@@ -459,6 +570,33 @@
           svgNode('circle', { cx: '5', cy: '12', r: '1.25', fill: 'currentColor' }),
           svgNode('circle', { cx: '5', cy: '17.5', r: '1.25', fill: 'currentColor' }),
           stroked('path', { d: 'M9 6.5h11M9 12h11M9 17.5h11' }),
+        );
+      } else if (name === 'encyclopedia') {
+        svg.append(
+          stroked('path', { d: 'M3.5 5.5c3.2-.8 5.8-.2 8.5 1.8v12c-2.7-2-5.3-2.6-8.5-1.8z' }),
+          stroked('path', { d: 'M20.5 5.5c-3.2-.8-5.8-.2-8.5 1.8v12c2.7-2 5.3-2.6 8.5-1.8z' }),
+        );
+      } else if (name === 'map') {
+        svg.append(
+          stroked('path', { d: 'm3.5 6 5-2.2 7 2.4 5-2.2v14l-5 2.2-7-2.4-5 2.2z' }),
+          stroked('path', { d: 'M8.5 3.8v14M15.5 6.2v14' }),
+        );
+      } else if (name === 'people') {
+        svg.append(
+          stroked('circle', { cx: '12', cy: '8', r: '3' }),
+          stroked('path', { d: 'M6.5 20v-2.2A5.5 5.5 0 0 1 12 12.3a5.5 5.5 0 0 1 5.5 5.5V20' }),
+        );
+      } else if (name === 'chronicle') {
+        svg.append(
+          stroked('path', { d: 'M5 4.5h11.5A2.5 2.5 0 0 1 19 7v12.5H7.5A2.5 2.5 0 0 1 5 17z' }),
+          stroked('path', { d: 'M5 17a2.5 2.5 0 0 1 2.5-2.5H19M9 8h6M9 11h5' }),
+        );
+      } else if (name === 'music') {
+        svg.append(
+          stroked('path', { d: 'M9 17V6l10-2v11' }),
+          stroked('path', { d: 'M9 9.5 19 7.5' }),
+          svgNode('circle', { cx: '6.5', cy: '17.5', r: '2.7', fill: 'currentColor' }),
+          svgNode('circle', { cx: '16.5', cy: '15.5', r: '2.7', fill: 'currentColor' }),
         );
       } else if (name === 'collapse') {
         svg.append(stroked('path', { d: 'm5 8 7 8 7-8' }));
@@ -525,8 +663,25 @@
           state.suppressLauncherClick = false;
           return;
         }
-        setExpanded(true);
+        openSurface('hub');
       });
+      on(ui.hub, 'pointerdown', (event) => beginDrag(event, 'hub'));
+      on(ui.hubMenu, 'click', (event) => {
+        const button = event.target.closest('button[data-feature]');
+        if (!button) return;
+        if (button.dataset.feature === 'map') openSurface('map');
+        if (button.dataset.feature === 'music') openSurface('player');
+      });
+      on(ui.hub, 'click', (event) => {
+        if (state.suppressHubClick) {
+          state.suppressHubClick = false;
+          return;
+        }
+        if (event.target.closest('button[data-feature]')) return;
+        closeSurface('launcher');
+      });
+      on(ui.mapToolbar, 'pointerdown', (event) => beginDrag(event, 'map'));
+      on(ui.mapBackButton, 'click', () => closeSurface('hub'));
       on(ui.dragSurface, 'pointerdown', (event) => beginDrag(event, 'panel'));
       on(ui.albumCover, 'load', () => {
         ui.albumCover.hidden = false;
@@ -536,7 +691,7 @@
         ui.albumCover.hidden = true;
         ui.albumFallback.hidden = false;
       });
-      on(ui.closeButton, 'click', () => setExpanded(false));
+      on(ui.closeButton, 'click', () => closeSurface('hub'));
       on(ui.playButton, 'click', togglePlayback);
       on(ui.previousButton, 'click', previousTrack);
       on(ui.nextButton, 'click', nextTrack);
@@ -554,17 +709,26 @@
       on(ui.trackList, 'transitionend', (event) => {
         if (event.propertyName === 'max-height') clampPosition();
       });
-      on(ui.panel, 'animationend', (event) => {
-        if (event.animationName === 'op74-fmp-panel-open') {
+      const handleSurfaceAnimationEnd = (event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.animationName === 'op74-fmp-surface-open') {
           delete ui.root.dataset.opening;
-        } else if (event.animationName === 'op74-fmp-panel-close') {
+        } else if (event.animationName === 'op74-fmp-surface-close') {
           finishClosingAnimation();
         }
-      });
+      };
+      on(ui.hub, 'animationend', handleSurfaceAnimationEnd);
+      on(ui.mapPanel, 'animationend', handleSurfaceAnimationEnd);
+      on(ui.panel, 'animationend', handleSurfaceAnimationEnd);
+      on(hostDocument, 'pointerdown', (event) => {
+        if (state.surface === 'launcher' || state.closing) return;
+        if (ui.root.contains(event.target)) return;
+        closeSurface('launcher', false);
+      }, true);
       on(hostDocument, 'keydown', (event) => {
-        if (event.key === 'Escape' && state.expanded) {
+        if (event.key === 'Escape' && state.surface !== 'launcher') {
           event.preventDefault();
-          setExpanded(false);
+          closeSurface(state.surface === 'hub' ? 'launcher' : 'hub');
         }
       });
       on(hostWindow, 'resize', scheduleClamp);
@@ -866,6 +1030,22 @@
         }
         if (url.protocol === 'data:' && /^data:image\//i.test(rawUrl.trim())) {
           return rawUrl.trim();
+        }
+      } catch (_error) {}
+      return null;
+    }
+
+    function normalizeMapDocumentUrl(rawUrl, baseUrl) {
+      if (typeof rawUrl !== 'string' || !rawUrl.trim()) return null;
+      try {
+        const url = new hostWindow.URL(rawUrl.trim(), baseUrl);
+        const base = new hostWindow.URL(baseUrl);
+        if (url.protocol === 'file:' && base.protocol === 'file:') return url.href;
+        if (
+          (url.protocol === 'https:' || url.protocol === 'http:')
+          && url.origin === base.origin
+        ) {
+          return url.href;
         }
       } catch (_error) {}
       return null;
@@ -1184,26 +1364,30 @@
       }
     }
 
-    function setExpanded(expanded) {
-      if (state.destroyed) return;
-      if (expanded) {
-        if (state.closing) {
-          clearCloseFallbackTimer();
-          state.closing = false;
-          delete ui.root.dataset.closing;
-          return;
-        }
-        if (state.expanded) return;
-        swapExpandedView(true);
-        return;
+    function openSurface(target) {
+      if (state.destroyed || !['hub', 'map', 'player'].includes(target)) return;
+      if (state.closing) {
+        clearCloseFallbackTimer();
+        state.closing = false;
+        state.closingTarget = '';
+        state.closingShouldFocus = true;
+        delete ui.root.dataset.closing;
       }
-      if (!state.expanded || state.closing) return;
+      if (state.surface === target) return;
+      swapSurface(target, true);
+    }
+
+    function closeSurface(target, shouldFocus = true) {
+      if (state.destroyed || state.surface === 'launcher' || state.closing) return;
+      if (!['launcher', 'hub'].includes(target)) target = 'launcher';
       delete ui.root.dataset.opening;
       if (prefersReducedMotion()) {
-        swapExpandedView(false);
+        swapSurface(target, false, shouldFocus);
         return;
       }
       state.closing = true;
+      state.closingTarget = target;
+      state.closingShouldFocus = shouldFocus;
       ui.root.dataset.closing = 'true';
       state.closeFallbackTimer = hostWindow.setTimeout(finishClosingAnimation, 280);
     }
@@ -1212,8 +1396,12 @@
       if (state.destroyed || !state.closing) return;
       clearCloseFallbackTimer();
       state.closing = false;
+      const target = state.closingTarget || 'launcher';
+      const shouldFocus = state.closingShouldFocus;
+      state.closingTarget = '';
+      state.closingShouldFocus = true;
       delete ui.root.dataset.closing;
-      swapExpandedView(false);
+      swapSurface(target, target !== 'launcher', shouldFocus);
     }
 
     function clearCloseFallbackTimer() {
@@ -1227,30 +1415,53 @@
         && hostWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
 
-    function swapExpandedView(expanded) {
-      const source = expanded ? ui.launcher : ui.panel;
+    function surfaceNode(surface) {
+      if (surface === 'hub') return ui.hub;
+      if (surface === 'map') return ui.mapPanel;
+      if (surface === 'player') return ui.panel;
+      return ui.launcher;
+    }
+
+    function swapSurface(target, animate, shouldFocus = true) {
+      const source = surfaceNode(state.surface);
       const sourceRect = source.getBoundingClientRect();
       const centerX = sourceRect.left + sourceRect.width / 2;
       const centerY = sourceRect.top + sourceRect.height / 2;
       ui.root.dataset.positioning = 'true';
       delete ui.root.dataset.opening;
-      state.expanded = expanded;
-      ui.launcher.hidden = expanded;
-      ui.panel.hidden = !expanded;
-      ui.launcher.setAttribute('aria-expanded', String(expanded));
+      state.surface = target;
+      ui.launcher.hidden = target !== 'launcher';
+      ui.hub.hidden = target !== 'hub';
+      ui.mapPanel.hidden = target !== 'map';
+      ui.panel.hidden = target !== 'player';
+      ui.launcher.setAttribute('aria-expanded', String(target !== 'launcher'));
+      ui.mapButton.setAttribute('aria-expanded', String(target === 'map'));
+      ui.musicButton.setAttribute('aria-expanded', String(target === 'player'));
+      try {
+        hostWindow.dispatchEvent(new hostWindow.CustomEvent('op74:floating-surface-change', {
+          detail: { surface: target },
+        }));
+      } catch (_error) {}
       hostWindow.requestAnimationFrame(() => {
-        const target = expanded ? ui.panel : ui.launcher;
-        const targetRect = target.getBoundingClientRect();
+        const targetNode = surfaceNode(target);
+        const targetRect = targetNode.getBoundingClientRect();
         state.x = centerX - targetRect.width / 2;
         state.y = centerY - targetRect.height / 2;
         applyPosition();
         clampPosition();
         delete ui.root.dataset.positioning;
-        if (expanded) {
-          if (!prefersReducedMotion()) ui.root.dataset.opening = 'true';
-          scheduleTrackOverflowUpdate();
-          ui.playButton.focus({ preventScroll: true });
-        } else {
+        if (target !== 'launcher') {
+          if (animate && !prefersReducedMotion()) ui.root.dataset.opening = 'true';
+          if (target === 'player') scheduleTrackOverflowUpdate();
+          if (shouldFocus) {
+            const focusTarget = target === 'player'
+              ? ui.playButton
+              : target === 'map'
+                ? ui.mapBackButton
+                : ui.musicButton;
+            focusTarget.focus({ preventScroll: true });
+          }
+        } else if (shouldFocus) {
           ui.launcher.focus({ preventScroll: true });
         }
       });
@@ -1266,7 +1477,7 @@
 
     function beginDrag(event, source) {
       if (state.drag || !event.isPrimary) return;
-      if (source === 'panel' && event.target.closest('button, input')) return;
+      if (source !== 'launcher' && event.target.closest('button, input')) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       event.preventDefault();
       const rect = ui.root.getBoundingClientRect();
@@ -1326,6 +1537,7 @@
       const drag = state.drag;
       if (!drag) return;
       if (drag.source === 'launcher' && drag.moved) state.suppressLauncherClick = true;
+      if (drag.source === 'hub' && drag.moved) state.suppressHubClick = true;
       try {
         drag.target.releasePointerCapture(drag.pointerId);
       } catch (_error) {}
@@ -1693,6 +1905,185 @@
   opacity: 0.82;
 }
 
+.op74-fmp-hub {
+  position: relative;
+  width: min(300px, calc(100vw - 16px));
+  height: min(210px, calc(100vh - 16px));
+  height: min(210px, calc(100dvh - 16px));
+  overflow: hidden;
+  border: 1px solid #626568;
+  border-radius: 24px;
+  background: #191b1d;
+  color: var(--op74-fmp-ink);
+  box-shadow:
+    0 18px 34px rgba(0, 0, 0, 0.44),
+    inset 0 1px rgba(255, 255, 255, 0.06);
+  touch-action: none;
+}
+
+.op74-fmp-hub-menu {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(2, 58px);
+  align-content: center;
+  padding: 0 24px;
+  row-gap: 22px;
+}
+
+.op74-fmp-hub-item {
+  display: flex;
+  width: 58px;
+  min-width: 58px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--op74-fmp-metal);
+  cursor: pointer;
+  justify-self: center;
+  touch-action: manipulation;
+}
+
+.op74-fmp-hub-item[data-feature="encyclopedia"] { grid-column: 1 / 3; grid-row: 1; }
+.op74-fmp-hub-item[data-feature="map"] { grid-column: 3 / 5; grid-row: 1; }
+.op74-fmp-hub-item[data-feature="people"] { grid-column: 5 / 7; grid-row: 1; }
+.op74-fmp-hub-item[data-feature="chronicle"] { grid-column: 2 / 4; grid-row: 2; }
+.op74-fmp-hub-item[data-feature="music"] { grid-column: 4 / 6; grid-row: 2; }
+
+.op74-fmp-hub-item-icon {
+  display: block;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: inherit;
+  transition: color 150ms ease, filter 150ms ease, transform 150ms ease;
+}
+
+.op74-fmp-hub-item-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.op74-fmp-hub-item:hover:not(:disabled) .op74-fmp-hub-item-icon,
+.op74-fmp-hub-item:focus-visible .op74-fmp-hub-item-icon {
+  color: var(--op74-fmp-gold);
+  filter: drop-shadow(0 0 5px rgba(213, 170, 85, 0.35));
+  transform: scale(1.08);
+}
+
+.op74-fmp-hub-item.is-ready {
+  color: #f8e5a5;
+}
+
+.op74-fmp-hub-item.is-ready .op74-fmp-hub-item-icon {
+  color: var(--op74-fmp-star);
+  filter: drop-shadow(0 0 5px rgba(213, 170, 85, 0.28));
+}
+
+#${ROOT_ID} .op74-fmp-hub-item:disabled {
+  cursor: default;
+  opacity: 0.64;
+}
+
+.op74-fmp-map {
+  position: relative;
+  width: min(760px, calc(100vw - 16px));
+  max-height: min(500px, calc(100vh - 16px));
+  max-height: min(500px, calc(100dvh - 16px));
+  padding: 10px;
+  overflow: hidden;
+  border: 1px solid #626568;
+  border-radius: 20px;
+  background:
+    linear-gradient(132deg, transparent 0 78%, rgba(169, 35, 33, 0.38) 78.2% 78.7%, transparent 79%),
+    #08090a;
+  color: var(--op74-fmp-ink);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(169, 35, 33, 0.34),
+    inset 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.op74-fmp-map::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 15px;
+  pointer-events: none;
+}
+
+.op74-fmp-map-toolbar {
+  position: absolute;
+  z-index: 3;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  width: auto;
+  height: 42px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.op74-fmp-map-toolbar:active {
+  cursor: grabbing;
+}
+
+.op74-fmp-map-back {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 9px;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(17, 19, 21, 0.84);
+  color: #f1f1ed;
+  backdrop-filter: blur(4px);
+}
+
+.op74-fmp-map-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 2184 / 1260;
+  overflow: hidden;
+  place-items: center;
+  z-index: 1;
+  border: 1px solid rgba(229, 229, 226, 0.38);
+  border-radius: 12px;
+  background: #050506;
+  box-shadow:
+    inset 0 0 0 1px rgba(169, 35, 33, 0.22),
+    0 8px 22px rgba(0, 0, 0, 0.42);
+}
+
+.op74-fmp-map-object {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #050506;
+  cursor: default;
+}
+
+.op74-fmp-map-fallback {
+  margin: 0;
+  padding: 20px;
+  color: var(--op74-fmp-muted);
+  text-align: center;
+}
+
 .op74-fmp-panel {
   position: relative;
   width: min(340px, calc(100vw - 16px));
@@ -1713,27 +2104,31 @@
 }
 
 .op74-fmp-panel[hidden],
+.op74-fmp-map[hidden],
+.op74-fmp-hub[hidden],
 .op74-fmp-launcher[hidden] {
   display: none !important;
 }
 
 #${ROOT_ID}[data-positioning="true"] .op74-fmp-panel,
+#${ROOT_ID}[data-positioning="true"] .op74-fmp-map,
+#${ROOT_ID}[data-positioning="true"] .op74-fmp-hub,
 #${ROOT_ID}[data-positioning="true"] .op74-fmp-launcher {
   visibility: hidden !important;
 }
 
-#${ROOT_ID}[data-opening="true"] .op74-fmp-panel {
+#${ROOT_ID}[data-opening="true"] :is(.op74-fmp-hub, .op74-fmp-map, .op74-fmp-panel) {
   transform-origin: center;
-  animation: op74-fmp-panel-open 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: op74-fmp-surface-open 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-#${ROOT_ID}[data-closing="true"] .op74-fmp-panel {
+#${ROOT_ID}[data-closing="true"] :is(.op74-fmp-hub, .op74-fmp-map, .op74-fmp-panel) {
   pointer-events: none;
   transform-origin: center;
-  animation: op74-fmp-panel-close 200ms cubic-bezier(0.7, 0, 0.84, 0) both;
+  animation: op74-fmp-surface-close 200ms cubic-bezier(0.7, 0, 0.84, 0) both;
 }
 
-@keyframes op74-fmp-panel-open {
+@keyframes op74-fmp-surface-open {
   from {
     opacity: 0;
     transform: scale(0.72);
@@ -1744,7 +2139,7 @@
   }
 }
 
-@keyframes op74-fmp-panel-close {
+@keyframes op74-fmp-surface-close {
   from {
     opacity: 1;
     transform: scale(1);
@@ -2236,7 +2631,8 @@
 }
 
 @media (max-width: 360px) {
-  .op74-fmp-panel {
+  .op74-fmp-panel,
+  .op74-fmp-map {
     width: calc(100vw - 16px);
   }
 }
