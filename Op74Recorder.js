@@ -318,13 +318,14 @@
     tracks: [
       // { name: '曲目名称', url: 'https://example.com/music.mp3', album: '专辑名', cover: 'https://example.com/cover.jpg' },
     ],
+    peoplePreviewRecords: [],
     cacheAudio: true,
     initialVolume: 0.6,
     initialMode: 'sequence',
     requestTimeoutMs: 12000,
   };
 
-  const VERSION = '0.11.0';
+  const VERSION = '0.23.11';
   const RUNTIME_KEY = '__OP74_FLOATING_MUSIC_PLAYER__';
   const ROOT_ID = 'op74-fmp-root';
   const STYLE_ID = 'op74-fmp-style';
@@ -336,6 +337,372 @@
   const LEGACY_AUDIO_CACHE_NAMES = [
     'op74-floating-music-audio-v1',
     'op74-floating-music-audio-v2',
+  ];
+  const PEOPLE_EXCLUDED_NAMES = new Set([
+    '卡缇娅',
+    '卡琳娜',
+    '弗拉德莲娜',
+    '阿莉雅',
+    '斯韦特兰娜',
+    '玛琳娜',
+    '瓦莲京娜',
+    '拉里莎',
+    '米列娜',
+    '妮基塔',
+    '安东尼娅',
+    '维亚切斯拉娃',
+  ]);
+  const PEOPLE_RUSSIAN_GIVEN_NAMES = Object.freeze({
+    阿列克谢: 'Алексей',
+    阿芙朵嘉: 'Авдотья',
+    维克托: 'Виктор',
+    安德烈: 'Андрей',
+    约瑟夫: 'Иосиф',
+    娜塔莉娅: 'Наталия',
+    娜杰日达: 'Надежда',
+    德米特里: 'Дмитрий',
+    雅科夫: 'Яков',
+  });
+  const PEOPLE_DISPLAY_ORDER = Object.freeze([
+    '阿列克谢',
+    '阿芙朵嘉',
+    '维克托',
+    '安德烈',
+    '约瑟夫',
+    '娜塔莉娅',
+    '娜杰日达',
+    '德米特里',
+    '雅科夫',
+  ]);
+  const PEOPLE_DISPLAY_RANK = new Map(
+    PEOPLE_DISPLAY_ORDER.map((name, index) => [name, index]),
+  );
+  const PEOPLE_PROFILES = Object.freeze({
+    阿列克谢: Object.freeze({
+      fullName: '阿列克谢·费奥多罗维奇·乌斯季诺夫',
+      portrait: 'https://i.postimg.cc/J4SCgsfF/01.png',
+      introduction: '科研人员，曾任“复归计划”主管，长期负责科研组织、技术协调与项目管理，主要工作涉及控制论、人工意识载体及意识转移系统，是该项目关键技术与启动流程的负责人。',
+    }),
+    阿芙朵嘉: Object.freeze({
+      fullName: '阿芙朵嘉·谢苗诺夫娜·韦利奇科',
+      portrait: 'https://i.postimg.cc/28gNJ1sJ/02.png',
+      introduction: '伊尔库茨克服装厂老裁缝，具备二十余年成衣改制与缝纫经验。工厂停摆后以家用缝纫机承接街坊修补及市场劳保用品加工，凭稳定手艺维持家庭生活。',
+    }),
+    雅科夫: Object.freeze({
+      fullName: '雅科夫·帕夫洛维奇·拜科夫',
+      portrait: 'https://i.postimg.cc/2SvNfzmC/09.png',
+      introduction: '前苏联情报人员，1991年被派驻巴黎，现滞留当地安全屋。日常行动范围有限，主要通过广播、报纸和公开资料了解局势，并保管任职期间接触的部分情报。',
+    }),
+    娜塔莉娅: Object.freeze({
+      fullName: '娜塔莉娅·尼古拉耶夫娜·戈利岑娜',
+      portrait: 'https://i.postimg.cc/K8LhyZbw/06.png',
+      introduction: '布料厂办公室文书，长期阅读国内外报刊，并参与当地保皇派集会的日常事务。能够借助家庭关系取得海外书刊，在公开活动中主要承担联络、资料转交和会务协助。',
+    }),
+    约瑟夫: Object.freeze({
+      fullName: '约瑟夫·列沃维奇·扎瓦尔津',
+      portrait: 'https://i.postimg.cc/qvnHdkrY/05.png',
+      introduction: '秋明塑料厂副厂长，实际负责生产组织与车间管理。由一线工人经夜校升任管理岗位，熟悉工艺、人员和账目；国家订单中断后仍负责维持工厂运转并公开财务记录。',
+    }),
+    德米特里: Object.freeze({
+      fullName: '德米特里·叶菲莫维奇·奥尔洛夫',
+      portrait: 'https://i.postimg.cc/P5ZnkthT/08.png',
+      introduction: '贸易公司负责人，曾任地方运输部门主管，是下诺夫哥罗德较早进入私营贸易的经营者之一。依靠既有运输网络组织货源、渠道与国际采购，业务明确排除武器及违法物品。',
+    }),
+    安德烈: Object.freeze({
+      fullName: '安德烈·伊戈列维奇·卡拉瓦耶夫',
+      portrait: 'https://i.postimg.cc/CL9ptR33/04.png',
+      introduction: '新西伯利亚国立大学计算机方向研究生，兼任研讨会技术人员。具有突出的编程与设备操作能力，负责获取影像资料、编写程序并执行测试，亦长期关注航天与信息传播。',
+    }),
+    维克托: Object.freeze({
+      fullName: '维克托·亚历山德罗维奇·特列波夫',
+      portrait: 'https://i.postimg.cc/DyR3DS9H/03.png',
+      introduction: '职业钢琴家，任托木斯克大学客座讲师，并作为当地乐团主要演奏者参加音乐会、讲座与城市纪念活动。曾在莫斯科音乐学院深造，是当地青年学院派音乐人的代表。',
+    }),
+    娜杰日达: Object.freeze({
+      fullName: '娜杰日达·斯捷潘诺夫娜·伊格纳季耶娃',
+      portrait: 'https://i.postimg.cc/pL8Mt2xb/07.png',
+      introduction: '喀山警局民警，负责街道秩序与日常治安事务，工作范围包括宗教场所周边及居民纠纷处置。长期从事一线巡查，在辖区内具有稳定的人际联系和现场处置经验。',
+    }),
+  });
+  const CHRONICLE_CHAPTERS = Object.freeze([
+    Object.freeze({
+      id: 'A',
+      title: '她自群星中来',
+      russian: 'Она пришла из звёзд',
+      city: '伊尔库茨克',
+      summary: '一只来自旧日的运输箱打破了伊尔库茨克公寓的日常，也带来一位需要重新安顿的访客。',
+      newCharacters: Object.freeze(['卡缇娅']),
+    }),
+    Object.freeze({
+      id: 'B',
+      title: '爱你的邻人',
+      russian: 'Возлюби ближнего',
+      city: '伊尔库茨克',
+      summary: '在对门邻里的往来与一场突发状况中，新的同行计划逐渐浮出水面。',
+      newCharacters: Object.freeze(['卡琳娜', '阿芙朵嘉']),
+    }),
+    Object.freeze({
+      id: 'C',
+      title: '90s新浪潮',
+      russian: 'Новая волна 90-х',
+      city: '托木斯克',
+      summary: '一行人在托木斯克的街头音乐与学院舞台之间，寻找旅程所需的第一项技术帮助。',
+      newCharacters: Object.freeze(['拉里莎', '维克托']),
+    }),
+    Object.freeze({
+      id: 'D',
+      title: '地上的与地外的',
+      russian: 'Земное и неземное',
+      city: '新西伯利亚',
+      summary: '科学城里的观星、科幻与一场友善辩论，让一次特殊的工程委托找到合作者。',
+      newCharacters: Object.freeze(['瓦莲京娜', '安德烈']),
+    }),
+    Object.freeze({
+      id: 'E',
+      title: '家族问题',
+      russian: 'Семейные дела',
+      city: '秋明',
+      summary: '秋明一座停摆工厂的欠薪难题，把技术采购变成了对责任与互助的观察。',
+      newCharacters: Object.freeze(['约瑟夫', '斯韦特兰娜']),
+    }),
+    Object.freeze({
+      id: 'F',
+      title: '追寻罗曼诺夫',
+      russian: 'В поисках Романовых',
+      city: '叶卡捷琳堡',
+      summary: '叶卡捷琳堡的历史热潮与一次郊外寻访，为下一步改造打开地方渠道。',
+      newCharacters: Object.freeze(['阿莉雅', '娜塔莉娅']),
+    }),
+    Object.freeze({
+      id: 'G',
+      title: '安息日不安息',
+      russian: 'Неспокойный шаббат',
+      city: '喀山',
+      summary: '喀山的短暂停留因一场礼日排演变得热闹，也留下一项尚待回应的托付。',
+      newCharacters: Object.freeze(['米列娜', '娜杰日达']),
+    }),
+    Object.freeze({
+      id: 'H',
+      title: '先锋派',
+      russian: 'Авангард',
+      city: '下诺夫哥罗德',
+      summary: '下诺夫哥罗德的一次特殊采购，在账本、讨价还价与棋局之间完成。',
+      newCharacters: Object.freeze(['玛琳娜', '德米特里']),
+    }),
+    Object.freeze({
+      id: 'I',
+      title: '非常俄式新闻',
+      russian: 'Очень русские новости',
+      city: '莫斯科',
+      summary: '莫斯科的一次非正式会面牵出旧时代遗留的联络任务，并指向下一站。',
+      newCharacters: Object.freeze(['弗拉德莲娜', '雅科夫']),
+    }),
+    Object.freeze({
+      id: 'J',
+      title: '伸手可及繁星',
+      russian: 'Звёзды на расстоянии вытянутой руки',
+      city: '圣彼得堡',
+      summary: '圣彼得堡的寻人之行让一段尘封研究重新出现，也带来关于身份与延续的新问题。',
+      newCharacters: Object.freeze(['阿列克谢']),
+    }),
+    Object.freeze({
+      id: 'K',
+      title: '晚冬',
+      russian: 'Поздняя зима',
+      city: '伏尔加格勒／顿河畔罗斯托夫',
+      summary: '一本旧小说让旅人从另一条年代久远的路线回望自身，并继续完成眼前的行程。',
+      newCharacters: Object.freeze(['塔季扬娜（书中人物）']),
+    }),
+  ]);
+  const ENCYCLOPEDIA_CATEGORIES = [
+    {
+      id: 'politics',
+      title: '远方来信',
+      accent: 'blue',
+      entries: [
+        {
+          title: '联邦行政派',
+          body: '叶利钦与盖达尔团队主张借总统权力迅速推进价格自由化、私有化和对外开放，认为迟疑只会拖长危机。支持者期待个人自由与经济效率，反对者则担忧权力集中、失业和生活成本。',
+        },
+        {
+          title: '议会与旧机构',
+          body: '人民代表大会和最高苏维埃仍沿用苏维埃制度框架，坚持议会应监督总统，并要求放慢改革、维持国家对关键产业的责任。议员中既有旧官员，也有民选改革者，反对阵线并非铁板一块。',
+        },
+        {
+          title: '自由民主派',
+          body: '城市知识分子、部分专业人员和新政治团体重视竞争性选举、言论自由、法治与融入欧洲，希望切断党国传统。可物价飞涨和改革失序不断消耗信任，使自由主义在大众中显得遥远而昂贵。',
+        },
+        {
+          title: '社会主义者与苏联怀旧者',
+          body: '共产主义者、旧党员和苏联怀旧者强调社会保障、公共所有、劳动尊严与大国地位。有人仍主张恢复联盟和社会主义制度，也有人并不追求复辟，只想找回稳定工资、低价住房和可预期的晚年。',
+        },
+        {
+          title: '地方共和国与自治派',
+          body: '各共和国与地方精英要求掌握更多税收、资源和文化事务。1992年《联邦条约》暂时维系多数地区与莫斯科的关系，但权利分配并不平等；鞑靼斯坦与车臣拒绝签署，继续寻求另一种地位。',
+        },
+        {
+          title: '工人、职员与退休者',
+          body: '工人、国家单位职员和退休者承受涨价、欠薪、失业风险与储蓄缩水，旧有工会和单位福利也在失灵。他们未必反对选举或市场，却往往把工资、就业、医疗和养老金看得比抽象制度更紧迫。',
+        },
+        {
+          title: '新商人与企业管理层',
+          body: '商人、企业经理和私有化中介拥护市场、产权与经营自由，也最有机会利用职位、关系和信息取得资产。新财富与旧权力常缠在一起，普通人因而既羡慕商业机会，也把暴富同特权和投机相连。',
+        },
+        {
+          title: '保皇与宗教复兴者',
+          body: '保皇主义在全国仍属边缘，常与东正教复兴、王朝记忆和强国家想象相伴。叶卡捷琳堡的游行、集会与工厂人脉使它格外显眼；老派眷恋罗曼诺夫，年轻追随者则各自寻找秩序、身份或归属。',
+        },
+        {
+          title: '普通家庭',
+          body: '多数平民并没有完整的政治纲领：有人拥护改革，有人怀念苏联，也有人只相信能把日子维持下去的人。物价、治安、工作和家庭遭遇随时改变判断，政治不是报纸上的理论，而是会闯进厨房的现实。',
+        },
+      ],
+    },
+    {
+      id: 'economy',
+      title: '危机成熟了',
+      accent: 'red',
+      entries: [
+        {
+          title: '从计划到市场',
+          body: '旧计划体系不再统一下达产量、价格和供货，市场价格、私人买卖与企业自主权开始取代行政命令。但产权、合同、银行和破产制度尚不健全，旧机构与新规则长期并存。',
+        },
+        {
+          title: '叶利钦—盖达尔路线',
+          body: '叶利钦与盖达尔团队把稳定财政、放开价格与贸易、推进私有化视为一组改革，主张尽快跨过制度真空。价格先放开，财政货币紧缩却屡受企业补贴、议会反对和信贷扩张削弱。',
+        },
+        {
+          title: '卢布、物价与美元',
+          body: '1992年1月大部分零售价放开，全年消费价格上涨约25倍。卢布仍在原苏联“卢布区”流通且持续贬值，美元逐渐成为保值和大额计价尺度，企业间赊欠与以物易物也增加。',
+        },
+        {
+          title: '凭证私有化',
+          body: '1992年秋启动凭证私有化，每名公民可领取面值一万卢布的私有化券，用于认购企业股份或转卖。信息、现金和组织能力不均，使许多人低价出售，而管理层、中介和新基金更易集中产权。',
+        },
+        {
+          title: '国家产出与企业',
+          body: '国家经济仍有庞大工业、能源和科研基础，却因联盟内供应链断裂、国防与投资削减、需求骤降而收缩。世界银行数据显示1992年实际GDP下降约14.5%，官方工业产出下降约18%。',
+        },
+        {
+          title: '家庭收入与生活',
+          body: '价格上涨远快于工资、养老金和储蓄，1992年末实际工资约为上年三分之二。家庭用菜园、兼职、修补、转卖和亲友交换补足收入；依赖单一国营工资的人最容易跌入“新贫困”。',
+        },
+        {
+          title: '街市、黑市与倒爷',
+          body: '1月自由贸易法令使街头摆卖合法化，倒卖、修理、私活和小规模走私迅速扩张。它填补国营渠道的空缺并减少排队，也让无票据交易、逃税、投机和人情网络混在正常买卖之间。',
+        },
+        {
+          title: '国际机构、外资与进口',
+          body: '俄罗斯于1992年6月加入IMF和世界银行，接受政策咨询、技术援助与有限贷款；外国企业和合资公司也开始寻找入口。开放贸易让进口商品增多，但外资仍受通胀、产权不明和政治风险约束。',
+        },
+      ],
+    },
+    {
+      id: 'regions',
+      title: '关于自决问题的争论总结',
+      accent: 'white',
+      entries: [
+        {
+          title: '伊尔库茨克｜东西伯利亚',
+          body: '炼铝、木材、机械与科研院所支撑城市，军工和联盟内订单萎缩后，工厂、商店与居民都转向副业、转卖和熟人交换。\n安加拉河与贝加尔湖近在城外，木屋、十二月党人记忆和铁路旅客塑造了城市气质；车站周边倒货换汇，住宅区仍靠面包店与邻里互助维持日常。',
+        },
+        {
+          title: '克拉斯诺亚尔斯克｜叶尼塞中枢',
+          body: '水电、铝业、机械、造纸和木材构成工业骨架；廉价电力支撑高耗能工厂，却挡不住1992年的订单收缩、欠薪与企业关系重组。\n叶尼塞河、跨西伯利亚铁路和广阔边疆赋予城市开阔而粗粝的气质。剧院、科研院所、老市集与近郊斯托尔贝岩柱，让重工业生活之外仍保留鲜明的西伯利亚文化。',
+        },
+        {
+          title: '托木斯克｜大学城',
+          body: '大学、研究所、仪器和电气工业占比很高，北部油田也提供部分需求；1992年的经费中断与欠薪迫使师生接私活、修设备或延长假期。\n木刻老屋与校园使它仍像“西伯利亚的雅典”。学院音乐、地下摇滚、街头演出和管理松散的广播台并存，文化生活比钱包更有韧性。',
+        },
+        {
+          title: '新西伯利亚｜西伯利亚枢纽',
+          body: '铁路、鄂毕河港、巨型工厂和批发商流汇集于此；国防订单与科研拨款缩减，学院城项目停顿，但人才、计算设备和交通位置又催生技术私活与新贸易。\n这是一座年轻、急促的城市。主站、集市与科学院林区像三个世界，学生研讨会、录像带、进口食品和自制机器在同一条渠道里流动。',
+        },
+        {
+          title: '秋明｜油气前线',
+          body: '油气管理、运输和后勤使行业工资显著高于全国，世界银行样本中秋明州1992年3月实际人均收入居首；但地方化工厂仍会失去国家订单、长期欠薪。\n油田轮班工、技术人员和旧工厂社区同城而居。财富在管线中流过，未必落进每个家庭；楼前议事的工人、菜园和阿富汗战争遗属构成另一面。',
+        },
+        {
+          title: '叶卡捷琳堡｜乌拉尔工业带',
+          body: '冶金、重型机械和军工曾是城市骨架，转产与订单骤减带来欠薪、以货抵薪和企业势力扩张；铁路枢纽仍让金属、零件和商贩不断穿城。\n城市在1991年恢复旧名，矿业商埠、苏联工厂城和欧亚分界三重记忆交叠。东正教复兴、王朝纪念与工人怀旧都能在街头出现。',
+        },
+        {
+          title: '喀山｜鞑靼斯坦',
+          body: '共和国的石油收入与喀山的航空、机械工业提供缓冲，也使税收、资源和企业归属成为同莫斯科谈判的筹码；市场与河运贸易同时扩张。\n1992年3月主权公投仍在街谈巷议中。俄语与鞑靼语并行，伊斯兰和东正教一同复兴；克里姆林、老鞑靼街区、教堂与集市彼此相望。',
+        },
+        {
+          title: '下诺夫哥罗德｜伏尔加实验场',
+          body: '高尔基汽车厂、军工与科研体系遭遇订单危机，州政府则推动商店私有化和地方市场改革，使这里成为全国注目的“改革实验室”；集市和转卖渠道迅速生长。\n旧高尔基城刚恢复原名并结束长期封闭。伏尔加河与奥卡河交汇处，闭城习惯、工程师文化、百年商埠记忆和新到的外国货挤在一起。',
+        },
+        {
+          title: '莫斯科｜首都',
+          body: '政府、银行、外贸许可与新公司高度集中，首都比多数地方更容易接触美元、进口货和私人资本；与此同时，住房、物价与收入差距把人群迅速分层。\n联盟首都忽然成了联邦首都，机构换牌而旧关系仍运转。车站审查、街头摊贩、倒汇者、剧院和权力机关共享同一座城市，秩序与机会都显得近在咫尺。',
+        },
+        {
+          title: '圣彼得堡｜波罗的海窗口',
+          body: '造船、机械和军工企业承受转轨冲击，港口、旅游、转口贸易与合资公司却带来新门路；真外资、掮客和皮包公司常用相似的招牌。\n城市刚从列宁格勒恢复旧名，帝国旧都、革命记忆与欧洲窗口的身份重新争夺位置。运河、开桥、剧场、餐厅和拥挤的公共住宅共同维持体面。',
+        },
+        {
+          title: '伏尔加格勒｜英雄城',
+          body: '拖拉机、钢铁、化工和重型机械企业在订单与投资收缩中艰难转产，伏尔加河运和周边农产品贸易仍为城市输送货物与生计。\n察里津、斯大林格勒、伏尔加格勒三个名字同时活在人们口中。战争记忆是公共生活的一部分，马马耶夫岗的献花与工厂社区的困顿相互映照。',
+        },
+        {
+          title: '顿河畔罗斯托夫｜南方门户',
+          body: '农机制造受集体农庄需求和信贷萎缩拖累，港口、粮食、蔬果与街市贸易却依靠南方交通继续活跃；倒汇者、商队和临时工作随人流聚集。\n顿河、亚速海与高加索方向在此交会。哥萨克传统重新公开出现，亚美尼亚等多族社区、南方集市及来自冲突地区的难民让城市既热闹又不安。',
+        },
+        {
+          title: '符拉迪沃斯托克｜太平洋门户',
+          body: '港口、渔业、船舶修理和太平洋舰队长期主导城市；1992年元旦结束封闭后，外国船舶、贸易团与日韩商品开始直接进入，但远距离供应仍使生活昂贵。\n山坡、海湾、军港和铁路终点塑造了边疆感。水兵、渔民、铁路职工与新商贩混在码头周围，来自东亚的包装、语言和流行物第一次如此显眼。',
+        },
+        {
+          title: '车里雅宾斯克｜钢铁与军工',
+          body: '钢铁、拖拉机、重型机械和国防工厂高度集中，军转民与订单锐减直接冲击工资和就业；企业以库存产品抵账，家庭靠菜园和零工补贴生活。\n“坦克城”的战争工业荣誉仍很强，烟尘和厂区也构成日常景观。乌拉尔工人文化、技术学校、冰球和周末郊外生活维系着城市认同。',
+        },
+        {
+          title: '鄂木斯克｜额尔齐斯河畔',
+          body: '炼油、石化、军工和农机工业庞大，却因联盟供应链和国家订单断裂而承压；铁路、额尔齐斯河运及邻近哈萨克斯坦的贸易提供了替代渠道。\n它既有西伯利亚要塞与哥萨克旧史，也有战时迁入工厂形成的新城区。剧院、宽阔街道、工业烟雾和出售中亚货物的市场共同构成1992年的城市表情。',
+        },
+      ],
+    },
+    {
+      id: 'special',
+      title: '论幻想',
+      accent: 'gold',
+      entries: [
+        {
+          title: '复归计划',
+          body: '假定通古斯坠落物并非陨石，而是一具保存着有机与机械双重躯体的逃生舱，复归计划便是以外星实物为蓝本的逆向工程。\n现实中，从一件未知装置推回材料、制造、控制与理论体系几乎不可能。若要成立，至少需要可反复测量的样机、跨学科数据库，以及能够解释每一步而非只会复制结果的新物理框架。',
+        },
+        {
+          title: '双躯体意识转移',
+          body: '这一假说把意识视作可在有机体与机械体之间迁移的信息结构，但每次转移都可能遗失记忆、习惯与无法察觉的心智成分，所谓“九成成功”也无法证明留下来的仍是同一个人。\n若要尝试，必须完整记录大脑连接、瞬时活动、化学状态与身体反馈，并回答复制品、原本和主观连续性之间的伦理问题；现有神经科学尚做不到这些。',
+        },
+        {
+          title: '人工意识载体',
+          body: '多层计算阵列或许能存储记忆、执行逻辑并模拟语言，但高速计算不等于心智。人脑的意识可能依赖神经元、突触、胶质细胞、身体感觉与不断变化的生化环境，目前连完整测量都无法完成。\n若要让人工载体真正容纳一个人，需要远超脑机接口的动态仿真、长期可塑性、具身学习和自我校正机制；它是否产生体验，而非只复述体验，仍无法验证。',
+        },
+        {
+          title: '意识稳定',
+          body: '人的精神若被转化为数据，稳定便不只是文件没有损坏。记忆之间的联系、价值判断、自我叙事和对外界的持续回应，都可能参与“我是我”的形成；一个副本即使回答完全相同，也无法证明它拥有原本的主观体验。\n机器人若能修改自身目标、形成新记忆、反思矛盾，并在时间中维持连续的自我模型，或许可以表现出自主思维。但这种稳定究竟是灵魂的延续、算法的自洽，还是足够逼真的模仿，目前没有可验证的判据。',
+        },
+        {
+          title: '微型托卡马克动力源',
+          body: '心脏大小、可长期供能且辐射极低的托卡马克远超现实工程。已有“紧凑型”概念仍以米为尺度，并需要巨大的加热功率、强磁场、真空系统、屏蔽层与散热结构。\n若要缩小到人体尺度，可能需要极端高场超导体、近乎无中子的未知燃料、耐受中子损伤的材料，以及把废热安全排出的新机制；任何一项都尚未实现。',
+        },
+        {
+          title: '全身神经—机械闭环',
+          body: '机械躯体若要像身体而非工具，控制信号必须从意识载体流向关节，同时把触觉、温度、疼痛、平衡和本体感觉实时送回。现实神经假体只能在有限通道中恢复部分动作或感觉。\n若要覆盖全身，需要高带宽双向接口、稳定数十年的传感器、统一的感觉编码、毫秒级协调和持续适应身体变化的模型；错误反馈还可能破坏具身感与自我认同。',
+        },
+        {
+          title: '长期休眠与组织修复舱',
+          body: '降低代谢的短期医疗与航天休眠尚可讨论，但让完整人体多年沉睡、阻止衰老，并在苏醒前修复病变和创伤，仍属于假说。冷冻会产生冰晶、毒性、温差和微血管损伤。\n若要成立，需要无损玻璃化、均匀复温、长期器官灌流，以及能识别感染、癌变和细胞缺陷的自主修复系统；修好身体以后，大脑记忆能否原样保留仍是另一道难题。',
+        },
+        {
+          title: '三曲面体',
+          body: '三曲面体被描述为能够改变身体状态，并在报废后留下难以解释的生命纠缠；然而一次性的异常现象无法区分真实机制、偶然事故与观察误差，更不能据此称为技术。\n若要形成假说，至少必须说明能量、质量与信息去了哪里，划定作用对象和持续时间，并在受控条件下重复结果。在此之前，它只能被记录为无法复现的现象，而不是可制造的装置。',
+        },
+      ],
+    },
   ];
 
   const sourceWindow = window;
@@ -397,6 +764,13 @@
       closing: false,
       closingTarget: '',
       closingShouldFocus: true,
+      encyclopediaCategory: '',
+      peopleSelected: '',
+      peopleImageExpanded: false,
+      chronicleGatePassed: preferences.chronicleGatePassed,
+      peopleRecords: [],
+      peopleBindingStatus: 'idle',
+      peopleRefreshQueued: false,
       playlistExpanded: false,
       loading: false,
       waiting: false,
@@ -446,6 +820,9 @@
       version: VERSION,
       destroy,
       open: () => openSurface('hub'),
+      openEncyclopedia: () => openSurface('encyclopedia'),
+      openPeople: () => openSurface('people'),
+      openChronicle: () => openSurface('chronicle'),
       openMap: () => openSurface('map'),
       openMusic: () => openSurface('player'),
       close: () => closeSurface('launcher'),
@@ -455,6 +832,15 @@
         surface: state.surface,
         expanded: state.surface === 'player',
         hubExpanded: state.surface === 'hub',
+        encyclopediaExpanded: state.surface === 'encyclopedia',
+        encyclopediaCategory: state.encyclopediaCategory,
+        peopleExpanded: state.surface === 'people',
+        peopleSelected: state.peopleSelected,
+        peopleImageExpanded: state.peopleImageExpanded,
+        peopleCount: state.peopleRecords.length,
+        peopleBindingStatus: state.peopleBindingStatus,
+        chronicleExpanded: state.surface === 'chronicle',
+        chronicleGatePassed: state.chronicleGatePassed,
         mapExpanded: state.surface === 'map',
         closing: state.closing,
         playlistExpanded: state.playlistExpanded,
@@ -478,6 +864,8 @@
 
     bindUiEvents();
     bindAudioEvents();
+    initializePeoplePreview();
+    void initializePeopleBinding();
     restorePosition();
     renderTrackList();
     render();
@@ -514,6 +902,9 @@
         ) || '',
         defaultCover: typeof raw.defaultCover === 'string' ? raw.defaultCover.trim() : '',
         tracks: Array.isArray(raw.tracks) ? raw.tracks : [],
+        peoplePreviewRecords: Array.isArray(raw.peoplePreviewRecords)
+          ? raw.peoplePreviewRecords
+          : [],
         cacheAudio: raw.cacheAudio !== false,
         initialVolume: clampNumber(raw.initialVolume, 0, 1, 0.6),
         initialMode,
@@ -527,6 +918,7 @@
         volume: normalizedConfig.initialVolume,
         x: null,
         y: null,
+        chronicleGatePassed: false,
       };
       try {
         const raw = hostWindow.localStorage.getItem(STORAGE_KEY);
@@ -538,6 +930,7 @@
           volume: clampNumber(parsed.volume, 0, 1, fallback.volume),
           x: finiteOrNull(parsed.x),
           y: finiteOrNull(parsed.y),
+          chronicleGatePassed: parsed.chronicleGatePassed === true,
         };
       } catch (_error) {
         return fallback;
@@ -554,6 +947,7 @@
             volume: state.volume,
             x: state.x,
             y: state.y,
+            chronicleGatePassed: state.chronicleGatePassed,
           }),
         );
       } catch (_error) {
@@ -588,13 +982,18 @@
       const peopleButton = featureButton('people', '人们', 'people');
       const chronicleButton = featureButton('chronicle', '行纪', 'chronicle');
       const musicButton = featureButton('music', '音乐', 'music');
-      [encyclopediaButton, peopleButton, chronicleButton].forEach((button) => {
-        button.disabled = true;
-        button.setAttribute('aria-disabled', 'true');
-      });
+      encyclopediaButton.classList.add('is-ready');
+      encyclopediaButton.setAttribute('aria-controls', 'op74-fmp-encyclopedia');
+      encyclopediaButton.setAttribute('aria-expanded', 'false');
       mapButton.classList.add('is-ready');
       mapButton.setAttribute('aria-controls', 'op74-fmp-map');
       mapButton.setAttribute('aria-expanded', 'false');
+      peopleButton.classList.add('is-ready');
+      peopleButton.setAttribute('aria-controls', 'op74-fmp-people');
+      peopleButton.setAttribute('aria-expanded', 'false');
+      chronicleButton.classList.add('is-ready');
+      chronicleButton.setAttribute('aria-controls', 'op74-fmp-chronicle');
+      chronicleButton.setAttribute('aria-expanded', 'false');
       musicButton.classList.add('is-ready');
       musicButton.setAttribute('aria-controls', 'op74-fmp-panel');
       musicButton.setAttribute('aria-expanded', 'false');
@@ -607,6 +1006,223 @@
       );
       hub.append(hubHeading, hubMenu);
       root.appendChild(hub);
+
+      const encyclopediaPanel = element('section', 'op74-fmp-encyclopedia');
+      encyclopediaPanel.id = 'op74-fmp-encyclopedia';
+      encyclopediaPanel.hidden = true;
+      encyclopediaPanel.setAttribute('role', 'region');
+      encyclopediaPanel.setAttribute('aria-label', '1992年俄罗斯百科目录');
+      const encyclopediaHeading = element('h2', 'op74-fmp-sr-only');
+      encyclopediaHeading.textContent = '1992年俄罗斯百科目录';
+      const encyclopediaToolbar = element('header', 'op74-fmp-encyclopedia-toolbar');
+      encyclopediaToolbar.title = '拖动百科面板';
+      const encyclopediaBackButton = iconButton('menu', '返回功能面板');
+      encyclopediaBackButton.classList.add('op74-fmp-encyclopedia-back');
+      const encyclopediaTitle = element('div', 'op74-fmp-encyclopedia-title');
+      const encyclopediaTitleMain = element('strong', 'op74-fmp-encyclopedia-title-main');
+      encyclopediaTitleMain.textContent = '百科';
+      const encyclopediaTitleCountry = element('span', 'op74-fmp-encyclopedia-title-country');
+      const encyclopediaFormerCountry = element('span', 'op74-fmp-encyclopedia-country-former');
+      encyclopediaFormerCountry.textContent = 'Союз Советских Социалистических Республик';
+      const encyclopediaCurrentCountry = element('span', 'op74-fmp-encyclopedia-country-current');
+      encyclopediaCurrentCountry.textContent = 'Российская Федерация';
+      encyclopediaTitleCountry.append(
+        encyclopediaFormerCountry,
+        encyclopediaCurrentCountry,
+      );
+      encyclopediaTitle.append(encyclopediaTitleMain, encyclopediaTitleCountry);
+      encyclopediaToolbar.append(
+        encyclopediaBackButton,
+        encyclopediaTitle,
+      );
+      const encyclopediaScroll = element('div', 'op74-fmp-encyclopedia-scroll');
+      encyclopediaScroll.tabIndex = 0;
+      encyclopediaScroll.setAttribute('aria-label', '百科类型与子条目；可滚动浏览');
+      const encyclopediaIndex = element('div', 'op74-fmp-encyclopedia-index');
+      encyclopediaIndex.setAttribute('aria-label', '百科分类');
+      ENCYCLOPEDIA_CATEGORIES.forEach((category, categoryIndex) => {
+        const button = element('button', 'op74-fmp-encyclopedia-category');
+        button.type = 'button';
+        button.dataset.encyclopediaCategory = category.id;
+        button.dataset.accent = category.accent;
+        button.setAttribute('aria-label', category.title);
+        const index = element('span', 'op74-fmp-encyclopedia-category-index');
+        index.textContent = String(categoryIndex + 1).padStart(2, '0');
+        const copy = element('span', 'op74-fmp-encyclopedia-category-copy');
+        const title = element('strong', 'op74-fmp-encyclopedia-category-title');
+        title.textContent = category.title;
+        copy.appendChild(title);
+        button.append(index, copy);
+        encyclopediaIndex.appendChild(button);
+      });
+
+      const encyclopediaDetail = element('section', 'op74-fmp-encyclopedia-detail');
+      encyclopediaDetail.hidden = true;
+      encyclopediaDetail.setAttribute('aria-live', 'polite');
+      const encyclopediaAccordion = element('div', 'op74-fmp-encyclopedia-accordion');
+      encyclopediaDetail.appendChild(encyclopediaAccordion);
+      encyclopediaScroll.append(encyclopediaIndex, encyclopediaDetail);
+      encyclopediaPanel.append(encyclopediaHeading, encyclopediaToolbar, encyclopediaScroll);
+      root.appendChild(encyclopediaPanel);
+
+      const peoplePanel = element('section', 'op74-fmp-people');
+      peoplePanel.id = 'op74-fmp-people';
+      peoplePanel.hidden = true;
+      peoplePanel.setAttribute('role', 'region');
+      peoplePanel.setAttribute('aria-label', '人物目录');
+      peoplePanel.dataset.peopleView = 'index';
+      const peopleHeading = element('h2', 'op74-fmp-sr-only');
+      peopleHeading.textContent = '人物目录';
+      const peopleToolbar = element('header', 'op74-fmp-people-toolbar');
+      peopleToolbar.title = '拖动人物面板';
+      const peopleBackButton = iconButton('back', '返回功能面板');
+      peopleBackButton.classList.add('op74-fmp-people-back');
+      const peopleMotto = element('span', 'op74-fmp-people-motto');
+      peopleMotto.lang = 'ru';
+      peopleMotto.textContent = 'Мы — в утраченной утопии';
+      peopleToolbar.append(peopleBackButton, peopleMotto);
+      const peopleScroll = element('div', 'op74-fmp-people-scroll');
+      peopleScroll.tabIndex = 0;
+      peopleScroll.setAttribute('aria-label', '已登记人物；可滚动浏览');
+      const peopleIndex = element('div', 'op74-fmp-people-index');
+      peopleIndex.setAttribute('aria-label', '人物名称目录');
+      const peopleEmpty = element('div', 'op74-fmp-people-empty');
+      peopleEmpty.setAttribute('role', 'status');
+      peopleEmpty.setAttribute('aria-label', '尚无已登记人物');
+      peopleEmpty.appendChild(createControlIcon('people'));
+      const peopleDetail = element('article', 'op74-fmp-people-detail');
+      peopleDetail.hidden = true;
+      peopleDetail.setAttribute('aria-live', 'polite');
+      const peopleIdentity = element('div', 'op74-fmp-people-identity');
+      const peoplePhoto = element('button', 'op74-fmp-people-photo');
+      peoplePhoto.type = 'button';
+      peoplePhoto.disabled = true;
+      peoplePhoto.title = '照片载入后可点击放大';
+      peoplePhoto.setAttribute('aria-label', '人物照片尚未载入');
+      peoplePhoto.setAttribute('aria-haspopup', 'dialog');
+      peoplePhoto.setAttribute('aria-controls', 'op74-fmp-people-lightbox');
+      peoplePhoto.setAttribute('aria-expanded', 'false');
+      const peoplePhotoImage = hostDocument.createElement('img');
+      peoplePhotoImage.className = 'op74-fmp-people-photo-image';
+      peoplePhotoImage.alt = '';
+      peoplePhotoImage.hidden = true;
+      peoplePhotoImage.loading = 'eager';
+      peoplePhotoImage.decoding = 'async';
+      const peoplePhotoFallback = element('div', 'op74-fmp-people-photo-fallback');
+      peoplePhotoFallback.appendChild(createControlIcon('people'));
+      peoplePhoto.append(peoplePhotoImage, peoplePhotoFallback);
+      const peopleFacts = element('dl', 'op74-fmp-people-facts');
+      const peopleName = peopleFact('姓名');
+      const peoplePresence = peopleFact('在场');
+      const peopleRelation = peopleFact('关系');
+      const peopleLinkage = peopleFact('联结');
+      peopleFacts.append(
+        peopleName.row,
+        peoplePresence.row,
+        peopleRelation.row,
+        peopleLinkage.row,
+      );
+      peopleIdentity.append(peoplePhoto, peopleFacts);
+      const peopleIntroduction = element('p', 'op74-fmp-people-introduction');
+      peopleDetail.append(peopleIdentity, peopleIntroduction);
+      peopleScroll.append(peopleIndex, peopleEmpty, peopleDetail);
+      peoplePanel.append(peopleHeading, peopleToolbar, peopleScroll);
+      root.appendChild(peoplePanel);
+
+      const peopleLightbox = element('section', 'op74-fmp-people-lightbox');
+      peopleLightbox.id = 'op74-fmp-people-lightbox';
+      peopleLightbox.hidden = true;
+      peopleLightbox.setAttribute('role', 'dialog');
+      peopleLightbox.setAttribute('aria-modal', 'true');
+      peopleLightbox.setAttribute('aria-label', '人物照片放大查看');
+      const peopleLightboxFrame = element('div', 'op74-fmp-people-lightbox-frame');
+      peopleLightboxFrame.setAttribute('role', 'img');
+      peopleLightboxFrame.setAttribute('aria-label', '人物照片');
+      const peopleLightboxClose = iconButton('close', '关闭放大图片');
+      peopleLightboxClose.classList.add('op74-fmp-people-lightbox-close');
+      peopleLightboxFrame.appendChild(peopleLightboxClose);
+      peopleLightbox.appendChild(peopleLightboxFrame);
+      peoplePanel.appendChild(peopleLightbox);
+
+      const chroniclePanel = element('section', 'op74-fmp-chronicle');
+      chroniclePanel.id = 'op74-fmp-chronicle';
+      chroniclePanel.hidden = true;
+      chroniclePanel.dataset.chronicleView = 'index';
+      chroniclePanel.setAttribute('role', 'region');
+      chroniclePanel.setAttribute('aria-label', '主线章节目录');
+      const chronicleHeading = element('h2', 'op74-fmp-sr-only');
+      chronicleHeading.textContent = '主线章节目录';
+      const chronicleToolbar = element('header', 'op74-fmp-chronicle-toolbar');
+      chronicleToolbar.title = '拖动章节面板';
+      const chronicleBackButton = iconButton('back', '返回功能面板');
+      chronicleBackButton.classList.add('op74-fmp-chronicle-back');
+      const chronicleTitle = element('strong', 'op74-fmp-chronicle-title');
+      chronicleTitle.textContent = '行纪';
+      chronicleToolbar.append(chronicleBackButton, chronicleTitle);
+      const chronicleGate = element('section', 'op74-fmp-chronicle-gate');
+      chronicleGate.setAttribute('aria-label', '章节目录剧透提示');
+      const chronicleGateCopy = element('div', 'op74-fmp-chronicle-gate-copy');
+      const chronicleGateTitle = element('strong', 'op74-fmp-chronicle-gate-title');
+      chronicleGateTitle.textContent = '此处为章节目录，可能包括部分剧透';
+      const chronicleGateNotice = element('p', 'op74-fmp-chronicle-gate-notice');
+      chronicleGateNotice.textContent = '确认要观看吗？';
+      chronicleGateCopy.append(chronicleGateTitle, chronicleGateNotice);
+      const chronicleGateButton = element('button', 'op74-fmp-chronicle-gate-button');
+      chronicleGateButton.type = 'button';
+      chronicleGateButton.textContent = '进入目录';
+      chronicleGate.append(chronicleGateCopy, chronicleGateButton);
+      const chronicleScroll = element('div', 'op74-fmp-chronicle-scroll');
+      chronicleScroll.hidden = true;
+      chronicleScroll.tabIndex = 0;
+      chronicleScroll.setAttribute('aria-label', '主线章节；可滚动浏览');
+      const chronicleIndex = element('div', 'op74-fmp-chronicle-index');
+      chronicleIndex.setAttribute('aria-label', '主线章节名称目录');
+      CHRONICLE_CHAPTERS.filter((chapter) => chapter.id !== 'K').forEach((chapter) => {
+        const item = element('details', 'op74-fmp-chronicle-entry');
+        item.dataset.chronicleChapter = chapter.id;
+        const chapterSummary = element('summary', 'op74-fmp-chronicle-entry-summary');
+        chapterSummary.setAttribute('aria-label', `${chapter.id}章 ${chapter.title}`);
+        const code = element('span', 'op74-fmp-chronicle-entry-code');
+        code.textContent = chapter.id;
+        const names = element('span', 'op74-fmp-chronicle-entry-names');
+        const chineseName = element('span', 'op74-fmp-chronicle-entry-name op74-fmp-chronicle-entry-name-cn');
+        chineseName.textContent = chapter.title;
+        const russianName = element('span', 'op74-fmp-chronicle-entry-name op74-fmp-chronicle-entry-name-ru');
+        russianName.lang = 'ru';
+        russianName.setAttribute('aria-hidden', 'true');
+        russianName.textContent = chapter.russian;
+        names.append(chineseName, russianName);
+        const indicator = element('span', 'op74-fmp-chronicle-entry-indicator');
+        indicator.setAttribute('aria-hidden', 'true');
+        chapterSummary.append(code, names, indicator);
+        const body = element('div', 'op74-fmp-chronicle-entry-body');
+        const city = element('p', 'op74-fmp-chronicle-city');
+        city.textContent = chapter.city;
+        const overview = element('p', 'op74-fmp-chronicle-overview');
+        overview.textContent = chapter.summary;
+        const spoiler = element('section', 'op74-fmp-chronicle-spoiler');
+        spoiler.dataset.revealed = 'false';
+        const spoilerButton = element('button', 'op74-fmp-chronicle-spoiler-button');
+        spoilerButton.type = 'button';
+        spoilerButton.dataset.chronicleSpoiler = chapter.id;
+        spoilerButton.setAttribute('aria-expanded', 'false');
+        spoilerButton.setAttribute('aria-label', '显示本章新登场角色；包含剧透');
+        const spoilerHint = element('span', 'op74-fmp-chronicle-spoiler-hint');
+        spoilerHint.textContent = '新访客们';
+        spoilerButton.appendChild(spoilerHint);
+        const spoilerBody = element('p', 'op74-fmp-chronicle-spoiler-body');
+        spoilerBody.hidden = true;
+        spoilerBody.textContent = chapter.newCharacters.length
+          ? chapter.newCharacters.join('、')
+          : '本章没有新增登场角色。';
+        spoiler.append(spoilerButton, spoilerBody);
+        body.append(city, overview, spoiler);
+        item.append(chapterSummary, body);
+        chronicleIndex.appendChild(item);
+      });
+      chronicleScroll.appendChild(chronicleIndex);
+      chroniclePanel.append(chronicleHeading, chronicleToolbar, chronicleGate, chronicleScroll);
+      root.appendChild(chroniclePanel);
 
       const mapPanel = element('section', 'op74-fmp-map');
       mapPanel.id = 'op74-fmp-map';
@@ -667,7 +1283,10 @@
 
       const meta = element('div', 'op74-fmp-meta');
       const nowTitle = element('div', 'op74-fmp-now-title');
-      nowTitle.textContent = '—';
+      const nowTitleText = element('span', 'op74-fmp-now-title-text');
+      nowTitleText.textContent = '—';
+      nowTitle.tabIndex = -1;
+      nowTitle.appendChild(nowTitleText);
       const nowAlbum = element('div', 'op74-fmp-now-album');
       meta.append(nowTitle, nowAlbum);
 
@@ -752,6 +1371,44 @@
         peopleButton,
         chronicleButton,
         musicButton,
+        encyclopediaPanel,
+        encyclopediaHeading,
+        encyclopediaToolbar,
+        encyclopediaBackButton,
+        encyclopediaTitleMain,
+        encyclopediaTitleCountry,
+        encyclopediaScroll,
+        encyclopediaIndex,
+        encyclopediaDetail,
+        encyclopediaAccordion,
+        peoplePanel,
+        peopleHeading,
+        peopleToolbar,
+        peopleBackButton,
+        peopleScroll,
+        peopleIndex,
+        peopleEmpty,
+        peopleDetail,
+        peoplePhoto,
+        peoplePhotoImage,
+        peoplePhotoFallback,
+        peopleLightbox,
+        peopleLightboxFrame,
+        peopleLightboxClose,
+        peopleNameValue: peopleName.value,
+        peoplePresenceValue: peoplePresence.value,
+        peopleRelationValue: peopleRelation.value,
+        peopleLinkageValue: peopleLinkage.value,
+        peopleIntroduction,
+        chroniclePanel,
+        chronicleHeading,
+        chronicleToolbar,
+        chronicleBackButton,
+        chronicleTitle,
+        chronicleGate,
+        chronicleGateButton,
+        chronicleScroll,
+        chronicleIndex,
         mapPanel,
         mapToolbar,
         mapBackButton,
@@ -762,6 +1419,7 @@
         albumCover,
         albumFallback,
         nowTitle,
+        nowTitleText,
         nowAlbum,
         progress,
         timeDisplay,
@@ -782,6 +1440,15 @@
       const node = hostDocument.createElement(tagName);
       if (className) node.className = className;
       return node;
+    }
+
+    function peopleFact(labelText) {
+      const row = element('div', 'op74-fmp-people-fact');
+      const label = element('dt', 'op74-fmp-people-fact-label');
+      label.textContent = labelText;
+      const value = element('dd', 'op74-fmp-people-fact-value');
+      row.append(label, value);
+      return { row, value };
     }
 
     function iconButton(icon, label) {
@@ -893,6 +1560,22 @@
         );
       } else if (name === 'collapse') {
         svg.append(stroked('path', { d: 'm5 8 7 8 7-8' }));
+      } else if (name === 'back') {
+        svg.append(
+          stroked('path', { d: 'm10 5-7 7 7 7' }),
+          stroked('path', { d: 'M4 12h17' }),
+        );
+      } else if (name === 'menu') {
+        svg.append(
+          stroked('path', { d: 'M5 7h14' }),
+          stroked('path', { d: 'M5 12h14' }),
+          stroked('path', { d: 'M5 17h14' }),
+        );
+      } else if (name === 'close') {
+        svg.append(
+          stroked('path', { d: 'M5 5l14 14' }),
+          stroked('path', { d: 'M19 5 5 19' }),
+        );
       } else if (name === 'retry') {
         svg.append(
           stroked('path', { d: 'M19 7v5h-5' }),
@@ -962,7 +1645,10 @@
       on(ui.hubMenu, 'click', (event) => {
         const button = event.target.closest('button[data-feature]');
         if (!button) return;
+        if (button.dataset.feature === 'encyclopedia') openSurface('encyclopedia');
         if (button.dataset.feature === 'map') openSurface('map');
+        if (button.dataset.feature === 'people') openSurface('people');
+        if (button.dataset.feature === 'chronicle') openSurface('chronicle');
         if (button.dataset.feature === 'music') openSurface('player');
       });
       on(ui.hub, 'click', (event) => {
@@ -972,6 +1658,103 @@
         }
         if (event.target.closest('button[data-feature]')) return;
         closeSurface('launcher');
+      });
+      on(ui.encyclopediaToolbar, 'pointerdown', (event) => beginDrag(event, 'encyclopedia'));
+      on(ui.encyclopediaBackButton, 'click', () => {
+        if (state.encyclopediaCategory) {
+          setEncyclopediaCategory('');
+        } else {
+          closeSurface('hub');
+        }
+      });
+      on(ui.encyclopediaIndex, 'click', (event) => {
+        const button = event.target.closest('button[data-encyclopedia-category]');
+        if (!button) return;
+        setEncyclopediaCategory(button.dataset.encyclopediaCategory);
+      });
+      on(ui.encyclopediaScroll, 'wheel', (event) => {
+        if (event.ctrlKey || event.deltaY === 0) return;
+
+        const unit = event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? ui.encyclopediaScroll.clientHeight
+            : 1;
+        const delta = event.deltaY * unit * 0.45;
+        const maxScroll = ui.encyclopediaScroll.scrollHeight - ui.encyclopediaScroll.clientHeight;
+        const isAtStart = delta < 0 && ui.encyclopediaScroll.scrollTop <= 0;
+        const isAtEnd = delta > 0 && ui.encyclopediaScroll.scrollTop >= maxScroll;
+
+        if (isAtStart || isAtEnd) return;
+        event.preventDefault();
+        ui.encyclopediaScroll.scrollTop += delta;
+      }, { passive: false });
+      on(ui.peopleToolbar, 'pointerdown', (event) => beginDrag(event, 'people'));
+      on(ui.peopleBackButton, 'click', () => {
+        if (state.peopleSelected) {
+          setPeopleSelected('');
+        } else {
+          closeSurface('hub');
+        }
+      });
+      on(ui.peopleIndex, 'click', (event) => {
+        const button = event.target.closest('button[data-people-name]');
+        if (!button) return;
+        setPeopleSelected(button.dataset.peopleName);
+      });
+      on(ui.peoplePhotoImage, 'load', () => {
+        ui.peoplePhotoImage.hidden = false;
+        ui.peoplePhotoFallback.hidden = true;
+        ui.peoplePhoto.disabled = false;
+        ui.peoplePhoto.title = '点击放大人物照片';
+        ui.peoplePhoto.setAttribute('aria-label', `${state.peopleSelected || '人物'}的照片；点击放大`);
+      });
+      on(ui.peoplePhotoImage, 'error', () => {
+        const source = ui.peoplePhotoImage.dataset.source || '';
+        const retryCount = Number(ui.peoplePhotoImage.dataset.retryCount || '0');
+        if (source && retryCount < 1) {
+          ui.peoplePhotoImage.dataset.retryCount = '1';
+          try {
+            const retryUrl = new hostWindow.URL(source);
+            retryUrl.searchParams.set('op74_retry', String(hostWindow.Date.now()));
+            ui.peoplePhotoImage.src = retryUrl.href;
+            return;
+          } catch (_error) {
+            // Invalid portrait URLs fall through to the safe placeholder below.
+          }
+        }
+        closePeopleImage(false);
+        ui.peoplePhotoImage.hidden = true;
+        ui.peoplePhotoFallback.hidden = false;
+        ui.peoplePhoto.disabled = true;
+        ui.peoplePhoto.title = '人物照片载入失败';
+        ui.peoplePhoto.setAttribute('aria-label', '人物照片载入失败');
+      });
+      on(ui.peoplePhoto, 'click', openPeopleImage);
+      on(ui.peopleLightboxClose, 'click', () => closePeopleImage());
+      on(ui.peopleLightbox, 'click', (event) => {
+        if (event.target === ui.peopleLightbox) closePeopleImage();
+      });
+      on(ui.chronicleToolbar, 'pointerdown', (event) => beginDrag(event, 'chronicle'));
+      on(ui.chronicleBackButton, 'click', () => closeSurface('hub'));
+      on(ui.chronicleGateButton, 'click', () => {
+        setChronicleGate(true);
+        savePreferences();
+      });
+      on(ui.chronicleIndex, 'click', (event) => {
+        const button = event.target.closest('button[data-chronicle-spoiler]');
+        if (!button) return;
+        const spoiler = button.closest('.op74-fmp-chronicle-spoiler');
+        if (!spoiler || spoiler.dataset.revealed === 'true') return;
+        const body = spoiler.querySelector('.op74-fmp-chronicle-spoiler-body');
+        spoiler.dataset.revealed = 'true';
+        button.setAttribute('aria-expanded', 'true');
+        button.hidden = true;
+        if (body) {
+          body.hidden = false;
+          body.tabIndex = -1;
+          body.focus({ preventScroll: true });
+        }
       });
       on(ui.mapToolbar, 'pointerdown', (event) => beginDrag(event, 'map'));
       on(ui.mapBackButton, 'click', () => closeSurface('hub'));
@@ -1000,7 +1783,10 @@
         if (Number.isInteger(index)) playTrack(index);
       });
       on(ui.trackList, 'transitionend', (event) => {
-        if (event.propertyName === 'max-height') clampPosition();
+        if (event.propertyName === 'max-height') {
+          clampPosition();
+          scheduleTrackOverflowUpdate();
+        }
       });
       const handleSurfaceAnimationEnd = (event) => {
         if (event.target !== event.currentTarget) return;
@@ -1011,6 +1797,9 @@
         }
       };
       on(ui.hub, 'animationend', handleSurfaceAnimationEnd);
+      on(ui.encyclopediaPanel, 'animationend', handleSurfaceAnimationEnd);
+      on(ui.peoplePanel, 'animationend', handleSurfaceAnimationEnd);
+      on(ui.chroniclePanel, 'animationend', handleSurfaceAnimationEnd);
       on(ui.mapPanel, 'animationend', handleSurfaceAnimationEnd);
       on(ui.panel, 'animationend', handleSurfaceAnimationEnd);
       on(hostDocument, 'pointerdown', (event) => {
@@ -1019,9 +1808,25 @@
         closeSurface('launcher', false);
       }, true);
       on(hostDocument, 'keydown', (event) => {
+        if (state.peopleImageExpanded) {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            closePeopleImage();
+          } else if (event.key === 'Tab') {
+            event.preventDefault();
+            ui.peopleLightboxClose.focus({ preventScroll: true });
+          }
+          return;
+        }
         if (event.key === 'Escape' && state.surface !== 'launcher') {
           event.preventDefault();
-          closeSurface(state.surface === 'hub' ? 'launcher' : 'hub');
+          if (state.surface === 'encyclopedia' && state.encyclopediaCategory) {
+            setEncyclopediaCategory('');
+          } else if (state.surface === 'people' && state.peopleSelected) {
+            setPeopleSelected('');
+          } else {
+            closeSurface(state.surface === 'hub' ? 'launcher' : 'hub');
+          }
         }
       });
       on(hostWindow, 'resize', scheduleClamp);
@@ -1658,8 +2463,319 @@
       }
     }
 
+    function runtimeFunction(name) {
+      if (typeof sourceWindow[name] === 'function') return sourceWindow[name].bind(sourceWindow);
+      try {
+        if (hostWindow !== sourceWindow && typeof hostWindow[name] === 'function') {
+          return hostWindow[name].bind(hostWindow);
+        }
+      } catch (_error) {}
+      return null;
+    }
+
+    function runtimeObject(name) {
+      if (sourceWindow[name] && typeof sourceWindow[name] === 'object') return sourceWindow[name];
+      try {
+        if (hostWindow !== sourceWindow && hostWindow[name] && typeof hostWindow[name] === 'object') {
+          return hostWindow[name];
+        }
+      } catch (_error) {}
+      return null;
+    }
+
+    function normalizePeopleRecords(value) {
+      const sourceEntries = Array.isArray(value)
+        ? value.map((item) => [item?.name, item?.record || item])
+        : value && typeof value === 'object'
+          ? Object.entries(value)
+          : [];
+      const seen = new Set();
+      const records = sourceEntries.flatMap(([rawName, rawRecord]) => {
+        const name = typeof rawName === 'string' ? rawName.trim().slice(0, 80) : '';
+        if (!name || seen.has(name) || PEOPLE_EXCLUDED_NAMES.has(name)) return [];
+        if (!rawRecord || typeof rawRecord !== 'object' || Array.isArray(rawRecord)) return [];
+        seen.add(name);
+        return [{
+          name,
+          record: {
+            在场: rawRecord.在场 === true,
+            关系: stringOrFallback(rawRecord.关系, '尚未形成明确关系', 500),
+            联结: Math.round(clampNumber(rawRecord.联结, 0, 5, 0)),
+          },
+        }];
+      });
+      return records
+        .map((item, sourceIndex) => ({ item, sourceIndex }))
+        .sort((left, right) => {
+          const leftRank = PEOPLE_DISPLAY_RANK.get(left.item.name) ?? Number.MAX_SAFE_INTEGER;
+          const rightRank = PEOPLE_DISPLAY_RANK.get(right.item.name) ?? Number.MAX_SAFE_INTEGER;
+          return leftRank - rightRank || left.sourceIndex - right.sourceIndex;
+        })
+        .map(({ item }) => item);
+    }
+
+    function initializePeoplePreview() {
+      const records = normalizePeopleRecords(config.peoplePreviewRecords);
+      if (!records.length) {
+        renderPeopleIndex();
+        return;
+      }
+      state.peopleRecords = records;
+      state.peopleBindingStatus = 'preview';
+      renderPeopleIndex();
+    }
+
+    function readPeopleFromMvu() {
+      const mvu = runtimeObject('Mvu');
+      if (!mvu || typeof mvu.getMvuData !== 'function') return null;
+      try {
+        const data = mvu.getMvuData({ type: 'message', message_id: 'latest' });
+        if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+        const statData = data.stat_data;
+        if (!statData || typeof statData !== 'object' || Array.isArray(statData)) return null;
+        return normalizePeopleRecords(statData.角色);
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function refreshPeopleFromMvu() {
+      const records = readPeopleFromMvu();
+      if (!records) return false;
+      state.peopleRecords = records;
+      state.peopleBindingStatus = 'bound';
+      if (state.peopleSelected && !records.some((item) => item.name === state.peopleSelected)) {
+        state.peopleSelected = '';
+      }
+      renderPeopleIndex();
+      renderPeopleView();
+      return true;
+    }
+
+    function queuePeopleRefresh() {
+      if (state.peopleRefreshQueued || state.destroyed) return;
+      state.peopleRefreshQueued = true;
+      hostWindow.setTimeout(() => {
+        state.peopleRefreshQueued = false;
+        refreshPeopleFromMvu();
+      }, 0);
+    }
+
+    async function initializePeopleBinding() {
+      state.peopleBindingStatus = state.peopleRecords.length ? 'preview' : 'waiting';
+      const waitGlobal = runtimeFunction('waitGlobalInitialized');
+      if (waitGlobal) {
+        try {
+          await waitGlobal('Mvu');
+        } catch (_error) {}
+      }
+      const mvu = runtimeObject('Mvu');
+      if (!mvu || typeof mvu.getMvuData !== 'function') {
+        if (!state.peopleRecords.length) state.peopleBindingStatus = 'unavailable';
+        renderPeopleIndex();
+        return false;
+      }
+      const eventOn = runtimeFunction('eventOn');
+      if (eventOn && mvu.events) {
+        [mvu.events.VARIABLE_INITIALIZED, mvu.events.VARIABLE_UPDATE_ENDED]
+          .filter(Boolean)
+          .forEach((eventName) => {
+            try {
+              const subscription = eventOn(eventName, queuePeopleRefresh);
+              if (subscription && typeof subscription.stop === 'function') {
+                disposers.push(() => subscription.stop());
+              }
+            } catch (_error) {}
+          });
+      }
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        if (state.destroyed) return false;
+        if (refreshPeopleFromMvu()) return true;
+        await new Promise((resolve) => hostWindow.setTimeout(resolve, 100));
+      }
+      if (!state.peopleRecords.length) state.peopleBindingStatus = 'unavailable';
+      renderPeopleIndex();
+      return false;
+    }
+
+    function peopleProfile(name) {
+      const profile = PEOPLE_PROFILES[name] || {};
+      return {
+        fullName: stringOrFallback(profile.fullName, name, 120),
+        portrait: normalizeImageUrl(
+          profile.portrait,
+          SCRIPT_SOURCE_URL || hostWindow.location.href,
+        ) || '',
+        introduction: stringOrFallback(
+          profile.introduction,
+          '档案中尚无足够信息形成可靠的基础介绍。',
+          1200,
+        ),
+      };
+    }
+
+    function linkageText(value) {
+      const labels = ['敌视', '陌生', '点头', '熟络', '信任', '生死之交'];
+      const level = Math.round(clampNumber(value, 0, 5, 0));
+      return `${level} / 5 · ${labels[level]}`;
+    }
+
+    function renderPeopleIndex() {
+      const fragment = hostDocument.createDocumentFragment();
+      state.peopleRecords.forEach((item) => {
+        const button = element('button', 'op74-fmp-people-entry');
+        button.type = 'button';
+        button.dataset.peopleName = item.name;
+        button.setAttribute('aria-label', item.name);
+        const chineseName = element('span', 'op74-fmp-people-entry-name op74-fmp-people-entry-name-cn');
+        chineseName.textContent = item.name;
+        const russianName = element('span', 'op74-fmp-people-entry-name op74-fmp-people-entry-name-ru');
+        russianName.lang = 'ru';
+        russianName.setAttribute('aria-hidden', 'true');
+        russianName.textContent = PEOPLE_RUSSIAN_GIVEN_NAMES[item.name] || item.name;
+        button.append(chineseName, russianName);
+        fragment.appendChild(button);
+      });
+      ui.peopleIndex.replaceChildren(fragment);
+      ui.peopleEmpty.hidden = state.peopleRecords.length > 0;
+    }
+
+    function renderPeopleView() {
+      const selected = state.peopleRecords.find((item) => item.name === state.peopleSelected) || null;
+      ui.peopleIndex.hidden = Boolean(selected);
+      ui.peopleEmpty.hidden = Boolean(selected) || state.peopleRecords.length > 0;
+      ui.peopleDetail.hidden = !selected;
+      ui.peoplePanel.dataset.peopleView = selected ? 'detail' : 'index';
+      ui.peopleBackButton.setAttribute(
+        'aria-label',
+        selected ? '返回人物目录' : '返回功能面板',
+      );
+      ui.peopleBackButton.title = selected ? '返回人物目录' : '返回功能面板';
+      if (!selected) {
+        closePeopleImage(false);
+        ui.peopleHeading.textContent = '人物目录';
+        ui.peoplePanel.setAttribute('aria-label', '人物目录');
+        return;
+      }
+      const profile = peopleProfile(selected.name);
+      ui.peopleHeading.textContent = selected.name;
+      ui.peoplePanel.setAttribute('aria-label', `${selected.name}的人物档案`);
+      ui.peopleNameValue.textContent = profile.fullName;
+      ui.peoplePresenceValue.textContent = selected.record.在场 ? '当前在场' : '当前不在场';
+      ui.peoplePresenceValue.dataset.presence = selected.record.在场 ? 'present' : 'absent';
+      ui.peopleRelationValue.textContent = selected.record.关系;
+      ui.peopleLinkageValue.textContent = linkageText(selected.record.联结);
+      ui.peopleIntroduction.textContent = profile.introduction;
+      closePeopleImage(false);
+      ui.peoplePhoto.disabled = true;
+      ui.peoplePhoto.title = '照片载入后可点击放大';
+      ui.peoplePhoto.setAttribute('aria-label', '人物照片尚未载入');
+      ui.peoplePhotoImage.hidden = true;
+      ui.peoplePhotoFallback.hidden = false;
+      ui.peoplePhotoImage.removeAttribute('src');
+      delete ui.peoplePhotoImage.dataset.source;
+      delete ui.peoplePhotoImage.dataset.retryCount;
+      ui.peoplePhotoImage.alt = '';
+      if (profile.portrait) {
+        ui.peoplePhotoImage.alt = `${selected.name}的照片`;
+        ui.peoplePhotoImage.dataset.source = profile.portrait;
+        ui.peoplePhotoImage.dataset.retryCount = '0';
+        ui.peoplePhotoImage.src = profile.portrait;
+      }
+    }
+
+    function openPeopleImage() {
+      if (
+        state.destroyed
+        || state.surface !== 'people'
+        || !state.peopleSelected
+        || ui.peoplePhoto.disabled
+        || ui.peoplePhotoImage.hidden
+        || !ui.peoplePhotoImage.src
+      ) return;
+      state.peopleImageExpanded = true;
+      const source = ui.peoplePhotoImage.currentSrc || ui.peoplePhotoImage.src;
+      ui.peopleLightboxFrame.style.backgroundImage = `url(${JSON.stringify(source)})`;
+      ui.peopleLightboxFrame.setAttribute('aria-label', ui.peoplePhotoImage.alt || '人物照片');
+      ui.peopleLightbox.hidden = false;
+      ui.peoplePhoto.setAttribute('aria-expanded', 'true');
+      hostWindow.requestAnimationFrame(() => {
+        ui.peopleLightboxClose.focus({ preventScroll: true });
+      });
+    }
+
+    function closePeopleImage(shouldFocus = true) {
+      if (!state.peopleImageExpanded && ui.peopleLightbox.hidden) return;
+      state.peopleImageExpanded = false;
+      ui.peopleLightbox.hidden = true;
+      ui.peopleLightboxFrame.style.removeProperty('background-image');
+      ui.peopleLightboxFrame.setAttribute('aria-label', '人物照片');
+      ui.peoplePhoto.setAttribute('aria-expanded', 'false');
+      if (shouldFocus && state.surface === 'people' && !ui.peoplePhoto.disabled) {
+        ui.peoplePhoto.focus({ preventScroll: true });
+      }
+    }
+
+    function setPeopleSelected(name, shouldFocus = true) {
+      const previous = state.peopleSelected;
+      state.peopleSelected = state.peopleRecords.some((item) => item.name === name) ? name : '';
+      ui.peopleScroll.scrollTop = 0;
+      renderPeopleView();
+      if (!shouldFocus) return;
+      hostWindow.requestAnimationFrame(() => {
+        if (state.peopleSelected) {
+          ui.peopleBackButton.focus({ preventScroll: true });
+        } else {
+          const target = ui.peopleIndex.querySelector(
+            `button[data-people-name="${cssEscape(previous)}"]`,
+          ) || ui.peopleIndex.querySelector('button[data-people-name]') || ui.peopleBackButton;
+          target.focus({ preventScroll: true });
+        }
+      });
+    }
+
+    function setChronicleGate(passed, shouldFocus = true) {
+      state.chronicleGatePassed = Boolean(passed);
+      ui.chronicleGate.hidden = state.chronicleGatePassed;
+      ui.chronicleScroll.hidden = !state.chronicleGatePassed;
+      ui.chroniclePanel.dataset.chronicleView = state.chronicleGatePassed ? 'index' : 'gate';
+      if (!shouldFocus) return;
+      hostWindow.requestAnimationFrame(() => {
+        const focusTarget = state.chronicleGatePassed
+          ? ui.chronicleIndex.querySelector('.op74-fmp-chronicle-entry-summary')
+          : ui.chronicleGateButton;
+        focusTarget?.focus({ preventScroll: true });
+      });
+    }
+
+    function resetChronicle() {
+      setChronicleGate(state.chronicleGatePassed, false);
+      ui.chronicleScroll.scrollTop = 0;
+      ui.chronicleIndex.querySelectorAll('details[open]').forEach((item) => {
+        item.open = false;
+      });
+      ui.chronicleIndex.querySelectorAll('.op74-fmp-chronicle-spoiler').forEach((spoiler) => {
+        spoiler.dataset.revealed = 'false';
+        const button = spoiler.querySelector('button[data-chronicle-spoiler]');
+        const body = spoiler.querySelector('.op74-fmp-chronicle-spoiler-body');
+        const hint = spoiler.querySelector('.op74-fmp-chronicle-spoiler-hint');
+        button?.setAttribute('aria-expanded', 'false');
+        button?.setAttribute('aria-label', '显示本章新登场角色；包含剧透');
+        if (button) button.hidden = false;
+        if (hint) hint.textContent = '新访客们';
+        if (body) body.hidden = true;
+      });
+    }
+
+    function cssEscape(value) {
+      if (hostWindow.CSS && typeof hostWindow.CSS.escape === 'function') {
+        return hostWindow.CSS.escape(String(value));
+      }
+      return String(value).replace(/["\\]/g, '\\$&');
+    }
+
     function openSurface(target) {
-      if (state.destroyed || !['hub', 'map', 'player'].includes(target)) return;
+      if (state.destroyed || !['hub', 'encyclopedia', 'people', 'chronicle', 'map', 'player'].includes(target)) return;
       if (state.closing) {
         clearCloseFallbackTimer();
         state.closing = false;
@@ -1668,6 +2784,12 @@
         delete ui.root.dataset.closing;
       }
       if (state.surface === target) return;
+      if (target === 'encyclopedia') setEncyclopediaCategory('', false);
+      if (target === 'people') {
+        setPeopleSelected('', false);
+        refreshPeopleFromMvu();
+      }
+      if (target === 'chronicle') resetChronicle();
       swapSurface(target, true);
     }
 
@@ -1711,12 +2833,16 @@
 
     function surfaceNode(surface) {
       if (surface === 'hub') return ui.hub;
+      if (surface === 'encyclopedia') return ui.encyclopediaPanel;
+      if (surface === 'people') return ui.peoplePanel;
+      if (surface === 'chronicle') return ui.chroniclePanel;
       if (surface === 'map') return ui.mapPanel;
       if (surface === 'player') return ui.panel;
       return ui.launcher;
     }
 
     function swapSurface(target, animate, shouldFocus = true) {
+      if (target !== 'people') closePeopleImage(false);
       const source = surfaceNode(state.surface);
       const sourceRect = source.getBoundingClientRect();
       const centerX = sourceRect.left + sourceRect.width / 2;
@@ -1726,9 +2852,15 @@
       state.surface = target;
       ui.launcher.hidden = target !== 'launcher';
       ui.hub.hidden = target !== 'hub';
+      ui.encyclopediaPanel.hidden = target !== 'encyclopedia';
+      ui.peoplePanel.hidden = target !== 'people';
+      ui.chroniclePanel.hidden = target !== 'chronicle';
       ui.mapPanel.hidden = target !== 'map';
       ui.panel.hidden = target !== 'player';
       ui.launcher.setAttribute('aria-expanded', String(target !== 'launcher'));
+      ui.encyclopediaButton.setAttribute('aria-expanded', String(target === 'encyclopedia'));
+      ui.peopleButton.setAttribute('aria-expanded', String(target === 'people'));
+      ui.chronicleButton.setAttribute('aria-expanded', String(target === 'chronicle'));
       ui.mapButton.setAttribute('aria-expanded', String(target === 'map'));
       ui.musicButton.setAttribute('aria-expanded', String(target === 'player'));
       try {
@@ -1750,9 +2882,17 @@
           if (shouldFocus) {
             const focusTarget = target === 'player'
               ? ui.playButton
-              : target === 'map'
-                ? ui.mapBackButton
-                : ui.musicButton;
+              : target === 'encyclopedia'
+                ? ui.encyclopediaBackButton
+                : target === 'people'
+                  ? ui.peopleBackButton
+                : target === 'chronicle'
+                  ? state.chronicleGatePassed
+                    ? ui.chronicleBackButton
+                    : ui.chronicleGateButton
+                : target === 'map'
+                  ? ui.mapBackButton
+                  : ui.musicButton;
             focusTarget.focus({ preventScroll: true });
           }
         } else if (shouldFocus) {
@@ -1767,6 +2907,91 @@
       render();
       if (expanded) scheduleTrackOverflowUpdate();
       hostWindow.requestAnimationFrame(() => clampPosition());
+    }
+
+    function renderEncyclopediaEntries(category) {
+      const entries = Array.isArray(category?.entries) && category.entries.length
+        ? category.entries
+        : Array.from({ length: 4 }, (_, index) => ({
+            title: `条目 ${String(index + 1).padStart(2, '0')}`,
+            body: '',
+          }));
+      const fragment = hostDocument.createDocumentFragment();
+
+      entries.forEach((entry, entryIndex) => {
+        const item = element('details', 'op74-fmp-encyclopedia-entry');
+        const summary = element('summary', 'op74-fmp-encyclopedia-entry-summary');
+        const number = element('span', 'op74-fmp-encyclopedia-entry-number');
+        number.textContent = String(entryIndex + 1).padStart(2, '0');
+        const label = element('span', 'op74-fmp-encyclopedia-entry-label');
+        label.textContent = entry.title;
+        const indicator = element('span', 'op74-fmp-encyclopedia-entry-indicator');
+        indicator.setAttribute('aria-hidden', 'true');
+        summary.append(number, label, indicator);
+
+        const body = element('div', 'op74-fmp-encyclopedia-entry-body');
+        if (entry.body) {
+          const paragraph = element('p', 'op74-fmp-encyclopedia-entry-text');
+          paragraph.textContent = entry.body;
+          body.appendChild(paragraph);
+        } else {
+          body.setAttribute('aria-label', '正文位置预留');
+          for (let lineIndex = 0; lineIndex < 3; lineIndex += 1) {
+            const line = element('span', 'op74-fmp-encyclopedia-placeholder-line');
+            line.setAttribute('aria-hidden', 'true');
+            body.appendChild(line);
+          }
+        }
+
+        item.append(summary, body);
+        fragment.appendChild(item);
+      });
+
+      ui.encyclopediaAccordion.replaceChildren(fragment);
+    }
+
+    function setEncyclopediaCategory(categoryId, shouldFocus = true) {
+      const previousCategory = state.encyclopediaCategory;
+      const category = ENCYCLOPEDIA_CATEGORIES.find((item) => item.id === categoryId) || null;
+      state.encyclopediaCategory = category?.id || '';
+      ui.encyclopediaIndex.hidden = Boolean(category);
+      ui.encyclopediaDetail.hidden = !category;
+      ui.encyclopediaPanel.dataset.encyclopediaView = category ? 'detail' : 'index';
+      ui.encyclopediaScroll.scrollTop = 0;
+      ui.encyclopediaAccordion.querySelectorAll('details[open]').forEach((item) => {
+        item.open = false;
+      });
+      if (category) {
+        renderEncyclopediaEntries(category);
+        ui.encyclopediaPanel.dataset.accent = category.accent;
+        ui.encyclopediaDetail.dataset.accent = category.accent;
+        ui.encyclopediaHeading.textContent = category.title;
+        ui.encyclopediaTitleMain.textContent = category.title;
+        ui.encyclopediaTitleCountry.hidden = true;
+        ui.encyclopediaDetail.setAttribute('aria-label', category.title);
+        ui.encyclopediaBackButton.setAttribute('aria-label', '返回百科分类');
+        ui.encyclopediaBackButton.title = '返回百科分类';
+        if (shouldFocus) {
+          hostWindow.requestAnimationFrame(() => {
+            ui.encyclopediaBackButton.focus({ preventScroll: true });
+          });
+        }
+      } else {
+        delete ui.encyclopediaPanel.dataset.accent;
+        delete ui.encyclopediaDetail.dataset.accent;
+        ui.encyclopediaHeading.textContent = '1992年俄罗斯百科目录';
+        ui.encyclopediaTitleMain.textContent = '百科';
+        ui.encyclopediaTitleCountry.hidden = false;
+        ui.encyclopediaDetail.removeAttribute('aria-label');
+        ui.encyclopediaBackButton.setAttribute('aria-label', '返回功能面板');
+        ui.encyclopediaBackButton.title = '返回功能面板';
+        if (shouldFocus) {
+          const target = ui.encyclopediaIndex.querySelector(
+            `button[data-encyclopedia-category="${previousCategory}"]`,
+          ) || ui.encyclopediaIndex.querySelector('button[data-encyclopedia-category]');
+          hostWindow.requestAnimationFrame(() => target?.focus({ preventScroll: true }));
+        }
+      }
     }
 
     function beginDrag(event, source) {
@@ -1927,30 +3152,44 @@
     function scheduleTrackOverflowUpdate() {
       if (state.trackMeasureFrame || state.destroyed) return;
       state.trackMeasureFrame = hostWindow.requestAnimationFrame(() => {
-        state.trackMeasureFrame = 0;
-        ui.trackList.querySelectorAll('.op74-fmp-track-button').forEach((button) => {
-          const nameWindow = button.querySelector('.op74-fmp-track-name-window');
-          const name = button.querySelector('.op74-fmp-track-name');
-          if (!nameWindow || !name || nameWindow.clientWidth <= 0) return;
-          const shift = Math.max(0, Math.ceil(name.scrollWidth - nameWindow.clientWidth));
-          button.classList.toggle('is-overflowing', shift > 1);
-          button.style.setProperty('--op74-fmp-track-shift', `${shift}px`);
-          button.style.setProperty(
-            '--op74-fmp-track-duration',
-            `${Math.min(18, Math.max(6, 5 + shift / 18))}s`,
-          );
+        state.trackMeasureFrame = hostWindow.requestAnimationFrame(() => {
+          state.trackMeasureFrame = 0;
+          updateOverflowState(ui.nowTitle, ui.nowTitleText);
+          ui.trackList.querySelectorAll('.op74-fmp-track-button').forEach((button) => {
+            const nameWindow = button.querySelector('.op74-fmp-track-name-window');
+            const name = button.querySelector('.op74-fmp-track-name');
+            updateOverflowState(button, name, nameWindow);
+          });
         });
       });
+    }
+
+    function updateOverflowState(target, textNode, viewportNode = target) {
+      if (!target || !textNode || !viewportNode) return;
+      const viewportWidth = viewportNode.getBoundingClientRect().width;
+      const textWidth = textNode.getBoundingClientRect().width;
+      if (viewportWidth <= 0 || textWidth <= 0) return;
+      const shift = Math.max(0, Math.ceil(textWidth - viewportWidth));
+      const isOverflowing = shift > 1;
+      target.classList.toggle('is-overflowing', isOverflowing);
+      target.style.setProperty('--op74-fmp-track-shift', `${shift}px`);
+      target.style.setProperty(
+        '--op74-fmp-track-duration',
+        `${Math.min(18, Math.max(6, 5 + shift / 18))}s`,
+      );
+      if (target === ui.nowTitle) target.tabIndex = isOverflowing ? 0 : -1;
     }
 
     function render() {
       if (state.destroyed) return;
       const currentTrack = state.tracks[state.index];
-      ui.nowTitle.textContent = currentTrack ? currentTrack.name : '—';
+      ui.nowTitleText.textContent = currentTrack ? currentTrack.name : '—';
+      ui.nowTitle.classList.toggle('is-playing', Boolean(currentTrack) && state.playing);
       ui.nowAlbum.textContent = currentTrack?.album || '';
       ui.nowTitle.title = currentTrack
         ? (currentTrack.album ? `${currentTrack.name} — ${currentTrack.album}` : currentTrack.name)
         : '';
+      scheduleTrackOverflowUpdate();
       renderArtwork();
       setButtonIcon(ui.playButton, state.playing ? 'pause' : 'play');
       ui.playButton.setAttribute('aria-label', state.playing ? '暂停播放' : '开始播放');
@@ -2011,6 +3250,7 @@
         const trackIndex = Number(button.dataset.trackIndex);
         const active = trackIndex === state.index;
         button.classList.toggle('is-active', active);
+        button.classList.toggle('is-playing', active && state.playing);
         button.setAttribute('aria-current', active ? 'true' : 'false');
         button.tabIndex = state.playlistExpanded ? 0 : -1;
         const duration = button.querySelector('.op74-fmp-track-duration');
@@ -2121,6 +3361,9 @@
   --op74-fmp-star: #f3c849;
   --op74-fmp-red: #a52420;
   --op74-fmp-danger: #ff9a78;
+  --op74-fmp-flag-white: #f1f2f4;
+  --op74-fmp-flag-blue: #2a58a4;
+  --op74-fmp-flag-red: #b6323a;
   position: fixed;
   z-index: 99999;
   left: 16px;
@@ -2289,6 +3532,1494 @@
   opacity: 0.64;
 }
 
+.op74-fmp-encyclopedia {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-white);
+  position: relative;
+  display: grid;
+  grid-template-rows: 66px minmax(0, 1fr);
+  width: min(430px, calc(100vw - 16px));
+  height: min(394px, calc(100vh - 16px));
+  height: min(394px, calc(100dvh - 16px));
+  overflow: hidden;
+  border: 1px solid #64676a;
+  border-radius: 22px;
+  background: #151719;
+  color: var(--op74-fmp-ink);
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.op74-fmp-encyclopedia::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 100%;
+  background: #34373a;
+  pointer-events: none;
+}
+
+.op74-fmp-encyclopedia-toolbar {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(241, 242, 244, 0.18);
+  background: #202225;
+  cursor: grab;
+  touch-action: none;
+}
+
+.op74-fmp-encyclopedia-toolbar::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  background: #34373a;
+  pointer-events: none;
+}
+
+.op74-fmp-encyclopedia-toolbar:active {
+  cursor: grabbing;
+}
+
+.op74-fmp-encyclopedia-back {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 9px;
+  border-color: rgba(215, 211, 199, 0.3);
+  background: #141618;
+  color: var(--op74-fmp-metal);
+}
+
+.op74-fmp-encyclopedia[data-accent="blue"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-blue);
+}
+
+.op74-fmp-encyclopedia[data-accent="red"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-red);
+}
+
+.op74-fmp-encyclopedia[data-accent="white"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-white);
+}
+
+.op74-fmp-encyclopedia[data-accent="gold"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-gold);
+}
+
+.op74-fmp-encyclopedia[data-encyclopedia-view="detail"] .op74-fmp-encyclopedia-back {
+  border-color: color-mix(in srgb, var(--op74-fmp-ency-accent) 72%, #4d4f50);
+  color: var(--op74-fmp-ency-accent);
+}
+
+.op74-fmp-encyclopedia-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.op74-fmp-encyclopedia-title-main {
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: 0.18em;
+}
+
+.op74-fmp-encyclopedia-title-country {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  overflow: hidden;
+  color: var(--op74-fmp-gold);
+  font-family: "Segoe Print", "Comic Sans MS", "Trebuchet MS", cursive;
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  line-height: 1.15;
+}
+
+.op74-fmp-encyclopedia-title-country[hidden] {
+  display: none;
+}
+
+.op74-fmp-encyclopedia-country-former,
+.op74-fmp-encyclopedia-country-current {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.op74-fmp-encyclopedia-country-former {
+  flex: 0 1 auto;
+  min-width: 54px;
+  color: rgba(213, 170, 85, 0.72);
+  text-decoration-line: line-through;
+  text-decoration-color: rgba(213, 170, 85, 0.92);
+  text-decoration-thickness: 1px;
+}
+
+.op74-fmp-encyclopedia-country-current {
+  flex: 0 1 auto;
+  color: #e5c36f;
+}
+
+.op74-fmp-encyclopedia-scroll {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 10px 9px 10px 12px;
+  padding: 0 9px 0 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--op74-fmp-divider) #0f1113;
+  scrollbar-width: auto;
+  user-select: text;
+}
+
+.op74-fmp-encyclopedia-scroll:focus-visible {
+  outline: 2px solid rgba(243, 200, 73, 0.68);
+  outline-offset: 2px;
+}
+
+.op74-fmp-encyclopedia-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.op74-fmp-encyclopedia-scroll::-webkit-scrollbar-track {
+  border: 1px solid #26282a;
+  background: #0f1113;
+}
+
+.op74-fmp-encyclopedia-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #0f1113;
+  border-radius: 10px;
+  background: #666a6d;
+}
+
+.op74-fmp-encyclopedia-scroll::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.15);
+}
+
+.op74-fmp-encyclopedia-index {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding-bottom: 2px;
+  animation: op74-fmp-encyclopedia-view-in 180ms ease both;
+}
+
+.op74-fmp-encyclopedia-index[hidden],
+.op74-fmp-encyclopedia-detail[hidden] {
+  display: none !important;
+}
+
+.op74-fmp-encyclopedia-category {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-white);
+  position: relative;
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr);
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  min-height: 66px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #3e4143;
+  border-radius: 10px;
+  background: #1d1f21;
+  color: var(--op74-fmp-metal);
+  text-align: left;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.op74-fmp-encyclopedia-category[data-accent="blue"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-blue);
+}
+
+.op74-fmp-encyclopedia-category[data-accent="red"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-red);
+}
+
+.op74-fmp-encyclopedia-category[data-accent="white"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-white);
+}
+
+.op74-fmp-encyclopedia-category[data-accent="gold"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-gold);
+}
+
+.op74-fmp-encyclopedia-category:hover,
+.op74-fmp-encyclopedia-category:focus-visible {
+  border-color: #5a5d60;
+  background: #26282b;
+  transform: translateX(2px);
+}
+
+.op74-fmp-encyclopedia-category-index {
+  display: grid;
+  align-self: stretch;
+  place-items: center;
+  border-right: 1px solid #3e4143;
+  color: var(--op74-fmp-ency-accent);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.op74-fmp-encyclopedia-category-copy {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px 14px;
+}
+
+.op74-fmp-encyclopedia-category-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #ece9df;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  line-height: 1.35;
+}
+
+.op74-fmp-encyclopedia[data-encyclopedia-view="detail"] {
+  height: min(394px, calc(100vh - 16px));
+  height: min(394px, calc(100dvh - 16px));
+}
+
+.op74-fmp-encyclopedia-detail {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-white);
+  min-width: 0;
+  animation: op74-fmp-encyclopedia-view-in 200ms ease both;
+}
+
+.op74-fmp-encyclopedia-detail[data-accent="blue"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-blue);
+}
+
+.op74-fmp-encyclopedia-detail[data-accent="red"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-red);
+}
+
+.op74-fmp-encyclopedia-detail[data-accent="white"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-flag-white);
+}
+
+.op74-fmp-encyclopedia-detail[data-accent="gold"] {
+  --op74-fmp-ency-accent: var(--op74-fmp-gold);
+}
+
+.op74-fmp-encyclopedia-accordion {
+  display: grid;
+  gap: 10px;
+}
+
+.op74-fmp-encyclopedia-entry {
+  --op74-fmp-ency-entry-bg: #1a1c1e;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #3b3e40;
+  border-radius: 9px;
+  background: var(--op74-fmp-ency-entry-bg);
+}
+
+.op74-fmp-encyclopedia-entry[open] {
+  border-color: #56595b;
+}
+
+.op74-fmp-encyclopedia-entry-summary {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 28px;
+  align-items: center;
+  min-height: 52px;
+  padding: 0 12px 0 0;
+  color: var(--op74-fmp-metal);
+  background: #202225;
+  cursor: pointer;
+  list-style: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.op74-fmp-encyclopedia-entry-summary::-webkit-details-marker {
+  display: none;
+}
+
+.op74-fmp-encyclopedia-entry-summary:hover,
+.op74-fmp-encyclopedia-entry-summary:focus-visible {
+  color: #ffffff;
+  background: #292b2e;
+}
+
+.op74-fmp-encyclopedia-entry-number {
+  display: grid;
+  align-self: stretch;
+  place-items: center;
+  border-right: 1px solid #3b3e40;
+  color: var(--op74-fmp-ency-accent);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.op74-fmp-encyclopedia-entry-label {
+  min-width: 0;
+  padding: 10px 14px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.op74-fmp-encyclopedia-entry-indicator {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  justify-self: center;
+}
+
+.op74-fmp-encyclopedia-entry-indicator::before,
+.op74-fmp-encyclopedia-entry-indicator::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 3px;
+  width: 12px;
+  height: 2px;
+  background: var(--op74-fmp-ency-accent);
+  transition: transform 160ms ease;
+}
+
+.op74-fmp-encyclopedia-entry-indicator::after {
+  transform: rotate(90deg);
+}
+
+.op74-fmp-encyclopedia-entry[open] .op74-fmp-encyclopedia-entry-indicator::after {
+  transform: rotate(0deg);
+}
+
+.op74-fmp-encyclopedia-entry-body {
+  display: grid;
+  gap: 9px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid #343638;
+  background: #151719;
+}
+
+.op74-fmp-encyclopedia-entry-text {
+  margin: 0;
+  color: #d7d4ca;
+  font-size: 14px;
+  letter-spacing: 0.025em;
+  line-height: 1.75;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.op74-fmp-encyclopedia-placeholder-line {
+  display: block;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--op74-fmp-ency-accent) 34%, #4b4e50),
+    #333638
+  );
+  opacity: 0.62;
+}
+
+.op74-fmp-encyclopedia-placeholder-line:nth-child(1) { width: 92%; }
+.op74-fmp-encyclopedia-placeholder-line:nth-child(2) { width: 76%; }
+.op74-fmp-encyclopedia-placeholder-line:nth-child(3) { width: 58%; }
+
+@keyframes op74-fmp-encyclopedia-view-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.op74-fmp-chronicle {
+  position: relative;
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr);
+  width: min(500px, calc(100vw - 16px));
+  height: min(430px, calc(100vh - 16px));
+  height: min(430px, calc(100dvh - 16px));
+  overflow: hidden;
+  border: 1px solid #65686a;
+  border-radius: 22px;
+  background:
+    linear-gradient(152deg, transparent 0 66%, rgba(141, 43, 37, 0.11) 66.3% 74%, transparent 74.3%),
+    radial-gradient(circle at 92% 8%, rgba(213, 170, 85, 0.09), transparent 32%),
+    #141719;
+  color: var(--op74-fmp-ink);
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.op74-fmp-chronicle::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset: 6px;
+  border: 1px solid rgba(213, 170, 85, 0.08);
+  border-radius: 16px;
+  pointer-events: none;
+}
+
+.op74-fmp-chronicle-toolbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 13px;
+  border-bottom: 1px solid #3c3f41;
+  background: rgba(24, 27, 29, 0.94);
+  cursor: grab;
+  touch-action: none;
+}
+
+.op74-fmp-chronicle-toolbar:active {
+  cursor: grabbing;
+}
+
+.op74-fmp-chronicle-back {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid #5e6264;
+  border-radius: 50%;
+  background: #1c1f21;
+  color: var(--op74-fmp-gold);
+}
+
+.op74-fmp-chronicle-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #ece8dc;
+  font-size: 19px;
+  font-weight: 760;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.op74-fmp-chronicle-scroll {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  margin: 12px 9px 12px 14px;
+  padding: 0 8px 0 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #6a6860 #0e1012;
+  scrollbar-width: thin;
+}
+
+.op74-fmp-chronicle-scroll:focus-visible {
+  outline: 2px solid rgba(213, 170, 85, 0.7);
+  outline-offset: 2px;
+}
+
+.op74-fmp-chronicle-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.op74-fmp-chronicle-scroll::-webkit-scrollbar-track {
+  background: #0e1012;
+}
+
+.op74-fmp-chronicle-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #0e1012;
+  border-radius: 8px;
+  background: #6a6860;
+}
+
+.op74-fmp-chronicle-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  animation: op74-fmp-encyclopedia-view-in 180ms ease both;
+}
+
+.op74-fmp-chronicle-index[hidden],
+.op74-fmp-chronicle-detail[hidden],
+.op74-fmp-chronicle-spoiler-body[hidden] {
+  display: none;
+}
+
+.op74-fmp-chronicle-entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+  min-height: 62px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #414446;
+  border-radius: 10px;
+  background: #1c1f21;
+  color: #e7e3d8;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.op74-fmp-chronicle-entry-code {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid #414446;
+  color: var(--op74-fmp-gold);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+}
+
+.op74-fmp-chronicle-entry-names {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  padding: 8px 9px;
+  text-align: center;
+}
+
+.op74-fmp-chronicle-entry-name {
+  grid-area: 1 / 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.op74-fmp-chronicle-entry-name-cn {
+  font-size: 14px;
+  font-weight: 680;
+  letter-spacing: 0.04em;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.op74-fmp-chronicle-entry-name-ru {
+  color: #e2c773;
+  font-family: "Segoe Script", "Monotype Corsiva", "Segoe Print", cursive;
+  font-size: clamp(11px, 2.8vw, 16px);
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 0;
+  transform: translateY(7px);
+}
+
+.op74-fmp-chronicle-entry:hover,
+.op74-fmp-chronicle-entry:focus-visible {
+  border-color: #9a8350;
+  background: #272727;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.op74-fmp-chronicle-entry:hover .op74-fmp-chronicle-entry-name-cn,
+.op74-fmp-chronicle-entry:focus-visible .op74-fmp-chronicle-entry-name-cn {
+  opacity: 0;
+  transform: translateY(-7px);
+}
+
+.op74-fmp-chronicle-entry:hover .op74-fmp-chronicle-entry-name-ru,
+.op74-fmp-chronicle-entry:focus-visible .op74-fmp-chronicle-entry-name-ru {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.op74-fmp-chronicle-detail {
+  min-width: 0;
+  animation: op74-fmp-encyclopedia-view-in 200ms ease both;
+}
+
+.op74-fmp-chronicle-accordion {
+  display: grid;
+  gap: 10px;
+}
+
+.op74-fmp-chronicle-fact {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #414446;
+  border-radius: 10px;
+  background: #181a1c;
+}
+
+.op74-fmp-chronicle-fact[open] {
+  border-color: #6f6753;
+}
+
+.op74-fmp-chronicle-fact-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  min-height: 54px;
+  padding: 0 12px 0 16px;
+  background: #202326;
+  color: #e8e4d9;
+  cursor: pointer;
+  list-style: none;
+}
+
+.op74-fmp-chronicle-fact-summary::-webkit-details-marker {
+  display: none;
+}
+
+.op74-fmp-chronicle-fact-summary:hover,
+.op74-fmp-chronicle-fact-summary:focus-visible {
+  background: #292c2e;
+  color: #fff5d0;
+}
+
+.op74-fmp-chronicle-fact-label {
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: 0.1em;
+}
+
+.op74-fmp-chronicle-fact-indicator {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+
+.op74-fmp-chronicle-fact-indicator::before,
+.op74-fmp-chronicle-fact-indicator::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 3px;
+  width: 12px;
+  height: 2px;
+  background: var(--op74-fmp-gold);
+  transition: transform 160ms ease;
+}
+
+.op74-fmp-chronicle-fact-indicator::after {
+  transform: rotate(90deg);
+}
+
+.op74-fmp-chronicle-fact[open] .op74-fmp-chronicle-fact-indicator::after {
+  transform: rotate(0deg);
+}
+
+.op74-fmp-chronicle-fact-body {
+  margin: 0;
+  padding: 15px 17px 17px;
+  border-top: 1px solid #36393b;
+  background: #151719;
+  color: #d8d5cc;
+  font-size: 14px;
+  letter-spacing: 0.025em;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.op74-fmp-chronicle-spoiler {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid #4a4540;
+  border-radius: 10px;
+  background: #151719;
+}
+
+.op74-fmp-chronicle-spoiler-button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 16px;
+  border: 0;
+  background:
+    repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 8px, transparent 8px 16px),
+    #201d1d;
+  color: #ddd8cc;
+  text-align: left;
+  cursor: pointer;
+}
+
+.op74-fmp-chronicle-spoiler-button:hover,
+.op74-fmp-chronicle-spoiler-button:focus-visible {
+  background-color: #2a2422;
+  color: #fff1c0;
+}
+
+.op74-fmp-chronicle-spoiler-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.op74-fmp-chronicle-spoiler-hint {
+  color: #a5a19a;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.op74-fmp-chronicle-spoiler[data-revealed="false"] .op74-fmp-chronicle-spoiler-label {
+  filter: blur(5px);
+  opacity: 0.45;
+  user-select: none;
+}
+
+.op74-fmp-chronicle-spoiler[data-revealed="true"] {
+  border-color: #8b7442;
+}
+
+.op74-fmp-chronicle-spoiler-body {
+  margin: 0;
+  padding: 16px;
+  border-top: 1px solid #4a4437;
+  color: #ead797;
+  font-size: 14px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+/* 行纪：与百科同尺寸的单页、单列章节手风琴。 */
+.op74-fmp-chronicle {
+  grid-template-rows: 66px minmax(0, 1fr);
+  width: min(430px, calc(100vw - 16px));
+  height: min(394px, calc(100vh - 16px));
+  height: min(394px, calc(100dvh - 16px));
+}
+
+.op74-fmp-chronicle-toolbar {
+  padding: 9px 12px;
+}
+
+.op74-fmp-chronicle-gate,
+.op74-fmp-chronicle-scroll {
+  grid-row: 2;
+  min-height: 0;
+}
+
+.op74-fmp-chronicle-gate[hidden],
+.op74-fmp-chronicle-scroll[hidden],
+.op74-fmp-chronicle-spoiler-button[hidden] {
+  display: none !important;
+}
+
+.op74-fmp-chronicle-gate {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 24px;
+  padding: 26px 34px 32px;
+  text-align: center;
+  animation: op74-fmp-encyclopedia-view-in 180ms ease both;
+}
+
+.op74-fmp-chronicle-gate-copy {
+  display: grid;
+  gap: 9px;
+}
+
+.op74-fmp-chronicle-gate-title {
+  color: #ece8dc;
+  font-size: 21px;
+  font-weight: 760;
+  letter-spacing: 0.1em;
+}
+
+.op74-fmp-chronicle-gate-notice {
+  margin: 0;
+  color: #aaa79f;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  line-height: 1.6;
+}
+
+.op74-fmp-chronicle-gate-button {
+  min-width: 132px;
+  min-height: 44px;
+  padding: 9px 20px;
+  border: 1px solid #927a42;
+  border-radius: 999px;
+  background: #24221d;
+  color: #ead387;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.op74-fmp-chronicle-gate-button:hover,
+.op74-fmp-chronicle-gate-button:focus-visible {
+  border-color: #d5aa55;
+  background: #302a1d;
+  color: #fff0b1;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.op74-fmp-chronicle-scroll {
+  margin: 10px 9px 10px 12px;
+  padding-right: 9px;
+}
+
+.op74-fmp-chronicle-index {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.op74-fmp-chronicle-entry {
+  display: block;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #3e4143;
+  border-radius: 9px;
+  background: #1a1c1e;
+  transform: none;
+}
+
+.op74-fmp-chronicle-entry[open] {
+  border-color: #56595b;
+}
+
+.op74-fmp-chronicle-entry-summary {
+  display: grid;
+  grid-template-columns: 50px minmax(0, 1fr) 28px;
+  align-items: stretch;
+  min-height: 60px;
+  padding: 0 11px 0 0;
+  color: #e7e3d8;
+  background: #202225;
+  cursor: pointer;
+  list-style: none;
+  transition: color 150ms ease, background 150ms ease;
+}
+
+.op74-fmp-chronicle-entry-summary::-webkit-details-marker {
+  display: none;
+}
+
+.op74-fmp-chronicle-entry-summary:hover,
+.op74-fmp-chronicle-entry-summary:focus-visible {
+  color: #fff3c4;
+  background: #292b2e;
+  outline: none;
+}
+
+.op74-fmp-chronicle-entry-code {
+  align-self: stretch;
+  border-right: 1px solid #3e4143;
+}
+
+.op74-fmp-chronicle-entry-names {
+  justify-items: start;
+  padding: 10px 14px;
+  text-align: left;
+}
+
+.op74-fmp-chronicle-entry-name-cn {
+  font-size: 15px;
+}
+
+.op74-fmp-chronicle-entry-name-ru {
+  font-size: clamp(12px, 3.2vw, 17px);
+  text-align: left;
+}
+
+.op74-fmp-chronicle-entry:hover,
+.op74-fmp-chronicle-entry:focus-visible {
+  border-color: #3e4143;
+  background: #1a1c1e;
+  transform: none;
+}
+
+.op74-fmp-chronicle-entry:hover .op74-fmp-chronicle-entry-name-cn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.op74-fmp-chronicle-entry:hover .op74-fmp-chronicle-entry-name-ru {
+  opacity: 0;
+  transform: translateY(7px);
+}
+
+.op74-fmp-chronicle-entry-summary:hover .op74-fmp-chronicle-entry-name-cn,
+.op74-fmp-chronicle-entry-summary:focus-visible .op74-fmp-chronicle-entry-name-cn {
+  opacity: 0;
+  transform: translateY(-7px);
+}
+
+.op74-fmp-chronicle-entry-summary:hover .op74-fmp-chronicle-entry-name-ru,
+.op74-fmp-chronicle-entry-summary:focus-visible .op74-fmp-chronicle-entry-name-ru {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.op74-fmp-chronicle-entry-indicator {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  align-self: center;
+  justify-self: center;
+}
+
+.op74-fmp-chronicle-entry-indicator::before,
+.op74-fmp-chronicle-entry-indicator::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 3px;
+  width: 12px;
+  height: 2px;
+  background: var(--op74-fmp-gold);
+  transition: transform 160ms ease;
+}
+
+.op74-fmp-chronicle-entry-indicator::after {
+  transform: rotate(90deg);
+}
+
+.op74-fmp-chronicle-entry[open] .op74-fmp-chronicle-entry-indicator::after {
+  transform: rotate(0deg);
+}
+
+.op74-fmp-chronicle-entry-body {
+  display: grid;
+  gap: 12px;
+  padding: 15px 17px 17px;
+  border-top: 1px solid #343638;
+  background: #151719;
+}
+
+.op74-fmp-chronicle-city,
+.op74-fmp-chronicle-overview {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.op74-fmp-chronicle-city {
+  color: #dec270;
+  font-family: "Segoe Print", "Comic Sans MS", "Trebuchet MS", cursive;
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 0.06em;
+}
+
+.op74-fmp-chronicle-overview {
+  color: #d8d5cc;
+  font-size: 14px;
+  letter-spacing: 0.025em;
+  line-height: 1.72;
+}
+
+.op74-fmp-chronicle-spoiler {
+  margin-top: 0;
+  border-color: #423f39;
+}
+
+.op74-fmp-chronicle-spoiler-button {
+  min-height: 44px;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.op74-fmp-chronicle-spoiler-hint {
+  color: #aaa69e;
+  font-size: 11px;
+}
+
+.op74-fmp-chronicle-spoiler[data-revealed="false"] .op74-fmp-chronicle-spoiler-hint {
+  filter: none;
+  opacity: 1;
+  user-select: none;
+}
+
+.op74-fmp-chronicle-spoiler-body {
+  text-align: center;
+}
+
+.op74-fmp-people {
+  position: relative;
+  display: grid;
+  grid-template-rows: 54px minmax(0, 1fr);
+  width: min(510px, calc(100vw - 16px));
+  height: min(430px, calc(100vh - 16px));
+  height: min(430px, calc(100dvh - 16px));
+  overflow: hidden;
+  border: 1px solid #64676a;
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      ellipse 135% 100% at 4% -12%,
+      rgba(231, 207, 137, 0.075) 0 39%,
+      rgba(197, 166, 65, 0.2) 39.2% 39.55%,
+      transparent 39.85%
+    ),
+    radial-gradient(
+      ellipse 110% 85% at 94% 112%,
+      transparent 0 54%,
+      rgba(28, 151, 155, 0.18) 54.25% 54.7%,
+      transparent 55%
+    ),
+    linear-gradient(
+      138deg,
+      transparent 0 61%,
+      rgba(19, 126, 130, 0.1) 61.2% 72%,
+      transparent 72.2%
+    ),
+    #111416;
+  color: var(--op74-fmp-ink);
+  box-shadow:
+    0 22px 54px rgba(0, 0, 0, 0.52),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px rgba(255, 255, 255, 0.07);
+}
+
+.op74-fmp-people::before {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 17px;
+  pointer-events: none;
+}
+
+.op74-fmp-people-toolbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  gap: 12px;
+  border-bottom: 1px solid rgba(205, 185, 126, 0.3);
+  background: rgba(12, 15, 16, 0.72);
+  cursor: grab;
+  touch-action: none;
+}
+
+.op74-fmp-people-toolbar:active {
+  cursor: grabbing;
+}
+
+.op74-fmp-people-back {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: 1px solid #606a6a;
+  border-radius: 50%;
+  background: #202326;
+  color: #c5cecc;
+}
+
+.op74-fmp-people-motto {
+  min-width: 0;
+  overflow: hidden;
+  color: #bcc5c3;
+  font-family: "Segoe Print", "Comic Sans MS", "Trebuchet MS", cursive;
+  font-size: 13px;
+  font-style: italic;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 8px rgba(180, 207, 204, 0.12);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.op74-fmp-people[data-people-view="detail"] .op74-fmp-people-motto {
+  display: none;
+}
+
+.op74-fmp-people-scroll {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px 20px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #517779 #111416;
+  scrollbar-width: thin;
+}
+
+.op74-fmp-people-scroll:focus-visible {
+  outline: 2px solid var(--op74-fmp-gold);
+  outline-offset: -4px;
+}
+
+.op74-fmp-people-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.op74-fmp-people-scroll::-webkit-scrollbar-track {
+  background: #111416;
+}
+
+.op74-fmp-people-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #111416;
+  border-radius: 8px;
+  background: #517779;
+}
+
+.op74-fmp-people-index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  animation: op74-fmp-encyclopedia-view-in 180ms ease both;
+}
+
+.op74-fmp-people-index[hidden],
+.op74-fmp-people-detail[hidden],
+.op74-fmp-people-empty[hidden] {
+  display: none;
+}
+
+.op74-fmp-people-entry {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 18px;
+  border: 1px solid rgba(208, 189, 132, 0.32);
+  border-left: 4px solid #278d90;
+  border-radius: 11px;
+  background: rgba(21, 29, 30, 0.94);
+  color: #e3e7e4;
+  font: 650 18px/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.op74-fmp-people-entry-name {
+  grid-area: 1 / 1;
+  min-width: 0;
+  max-width: 100%;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.op74-fmp-people-entry-name-cn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.op74-fmp-people-entry-name-ru {
+  color: #d8dddb;
+  font-family: "Segoe Script", "Monotype Corsiva", "Segoe Print", cursive;
+  font-size: 21px;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  opacity: 0;
+  transform: translateY(7px);
+}
+
+.op74-fmp-people-entry:hover,
+.op74-fmp-people-entry:focus-visible {
+  border-color: #d3b75f;
+  border-left-color: #48b5b7;
+  background: #1c3031;
+  color: #fff0b8;
+  outline: none;
+}
+
+.op74-fmp-people-entry:hover .op74-fmp-people-entry-name-cn,
+.op74-fmp-people-entry:focus-visible .op74-fmp-people-entry-name-cn {
+  opacity: 0;
+  transform: translateY(-7px);
+}
+
+.op74-fmp-people-entry:hover .op74-fmp-people-entry-name-ru,
+.op74-fmp-people-entry:focus-visible .op74-fmp-people-entry-name-ru {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.op74-fmp-people-empty {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  color: #55585a;
+}
+
+.op74-fmp-people-empty .op74-fmp-icon {
+  width: 72px;
+  height: 72px;
+  opacity: 0.7;
+}
+
+.op74-fmp-people-detail {
+  display: flex;
+  min-height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  animation: op74-fmp-encyclopedia-view-in 200ms ease both;
+}
+
+.op74-fmp-people-identity {
+  display: grid;
+  grid-template-columns: minmax(126px, 0.36fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 20px;
+  min-width: 0;
+}
+
+.op74-fmp-people-photo {
+  position: relative;
+  width: 100%;
+  max-width: 168px;
+  aspect-ratio: 4 / 5;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #777a7c;
+  border-radius: 10px;
+  background: #0d0f11;
+  box-shadow: 7px 7px 0 rgba(213, 170, 85, 0.18);
+  padding: 0;
+  color: inherit;
+  cursor: zoom-in;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.op74-fmp-people-photo:disabled {
+  cursor: default;
+}
+
+.op74-fmp-people-photo:not(:disabled):hover,
+.op74-fmp-people-photo:not(:disabled):focus-visible {
+  border-color: var(--op74-fmp-gold);
+  box-shadow:
+    7px 7px 0 rgba(213, 170, 85, 0.24),
+    0 0 0 2px rgba(213, 170, 85, 0.22);
+}
+
+.op74-fmp-people-photo-image,
+.op74-fmp-people-photo-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.op74-fmp-people-photo-image {
+  display: block;
+  object-fit: cover;
+  object-position: center;
+}
+
+.op74-fmp-people-photo-image[hidden],
+.op74-fmp-people-photo-fallback[hidden] {
+  display: none;
+}
+
+.op74-fmp-people-photo-fallback {
+  display: grid;
+  place-items: center;
+  color: #6e7173;
+  background:
+    linear-gradient(145deg, transparent 0 58%, rgba(213, 170, 85, 0.12) 58.5% 59%, transparent 59.5%),
+    #17191b;
+}
+
+.op74-fmp-people-photo-fallback .op74-fmp-icon {
+  width: 58%;
+  height: 58%;
+}
+
+.op74-fmp-people-facts {
+  display: grid;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+  align-self: stretch;
+  min-width: 0;
+  margin: 0;
+  border-top: 1px solid #45484a;
+}
+
+.op74-fmp-people-fact {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 9px 4px;
+  border-bottom: 1px solid #3a3d3f;
+}
+
+.op74-fmp-people-fact-label,
+.op74-fmp-people-fact-value {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.op74-fmp-people-fact-label {
+  color: var(--op74-fmp-gold);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+}
+
+.op74-fmp-people-fact-value {
+  color: #e5e3dc;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.op74-fmp-people-fact-value[data-presence="present"] {
+  color: #f3d27f;
+}
+
+.op74-fmp-people-introduction {
+  display: grid;
+  flex: 1 1 auto;
+  place-items: center;
+  margin: 18px 0 0;
+  padding: 15px 17px;
+  border: 1px solid #45484a;
+  border-left: 4px solid var(--op74-fmp-gold);
+  border-radius: 10px;
+  background: #1d1f21;
+  color: #d5d4ce;
+  font-size: 15px;
+  line-height: 1.75;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.op74-fmp-people-lightbox {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-radius: inherit;
+  background: rgba(4, 6, 7, 0.88);
+  cursor: zoom-out;
+  animation: op74-fmp-lightbox-in 180ms ease both;
+}
+
+.op74-fmp-people-lightbox[hidden] {
+  display: none;
+}
+
+.op74-fmp-people-lightbox-frame {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(213, 170, 85, 0.72);
+  border-radius: 12px;
+  background-color: #090b0d;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.72);
+  cursor: default;
+}
+
+.op74-fmp-people-lightbox-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 50%;
+  background: rgba(12, 14, 16, 0.82);
+  color: #f3efe4;
+  cursor: pointer;
+}
+
+@keyframes op74-fmp-lightbox-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 480px) {
+  .op74-fmp-people-scroll {
+    padding: 14px;
+  }
+
+  .op74-fmp-people-identity {
+    grid-template-columns: minmax(96px, 0.35fr) minmax(0, 1fr);
+    gap: 13px;
+  }
+
+  .op74-fmp-people-fact {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 7px;
+    padding: 7px 2px;
+  }
+
+  .op74-fmp-people-fact-value {
+    font-size: 12px;
+  }
+
+  .op74-fmp-people-introduction {
+    margin-top: 14px;
+    padding: 12px 13px;
+    font-size: 13px;
+  }
+
+  .op74-fmp-people-lightbox {
+    padding: 10px;
+  }
+
+  .op74-fmp-people-lightbox-frame {
+    max-width: 100%;
+    max-height: 100%;
+  }
+}
+
 .op74-fmp-map {
   position: relative;
   width: min(760px, calc(100vw - 16px));
@@ -2398,6 +5129,9 @@
 }
 
 .op74-fmp-panel[hidden],
+.op74-fmp-encyclopedia[hidden],
+.op74-fmp-people[hidden],
+.op74-fmp-chronicle[hidden],
 .op74-fmp-map[hidden],
 .op74-fmp-hub[hidden],
 .op74-fmp-launcher[hidden] {
@@ -2405,18 +5139,21 @@
 }
 
 #${ROOT_ID}[data-positioning="true"] .op74-fmp-panel,
+#${ROOT_ID}[data-positioning="true"] .op74-fmp-encyclopedia,
+#${ROOT_ID}[data-positioning="true"] .op74-fmp-people,
+#${ROOT_ID}[data-positioning="true"] .op74-fmp-chronicle,
 #${ROOT_ID}[data-positioning="true"] .op74-fmp-map,
 #${ROOT_ID}[data-positioning="true"] .op74-fmp-hub,
 #${ROOT_ID}[data-positioning="true"] .op74-fmp-launcher {
   visibility: hidden !important;
 }
 
-#${ROOT_ID}[data-opening="true"] :is(.op74-fmp-hub, .op74-fmp-map, .op74-fmp-panel) {
+#${ROOT_ID}[data-opening="true"] :is(.op74-fmp-hub, .op74-fmp-encyclopedia, .op74-fmp-people, .op74-fmp-chronicle, .op74-fmp-map, .op74-fmp-panel) {
   transform-origin: center;
   animation: op74-fmp-surface-open 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-#${ROOT_ID}[data-closing="true"] :is(.op74-fmp-hub, .op74-fmp-map, .op74-fmp-panel) {
+#${ROOT_ID}[data-closing="true"] :is(.op74-fmp-hub, .op74-fmp-encyclopedia, .op74-fmp-people, .op74-fmp-chronicle, .op74-fmp-map, .op74-fmp-panel) {
   pointer-events: none;
   transform-origin: center;
   animation: op74-fmp-surface-close 200ms cubic-bezier(0.7, 0, 0.84, 0) both;
@@ -2557,6 +5294,18 @@
   color: #f4f1e8;
   font-size: 14px;
   font-weight: 700;
+}
+
+.op74-fmp-now-title-text {
+  display: inline-block;
+  min-width: max-content;
+  pointer-events: none;
+}
+
+.op74-fmp-now-title.is-overflowing.is-playing .op74-fmp-now-title-text,
+.op74-fmp-now-title.is-overflowing:hover .op74-fmp-now-title-text,
+.op74-fmp-now-title.is-overflowing:focus-visible .op74-fmp-now-title-text {
+  animation: op74-fmp-track-marquee var(--op74-fmp-track-duration, 8s) ease-in-out infinite alternate;
 }
 
 .op74-fmp-now-album {
@@ -2846,6 +5595,7 @@
   pointer-events: none;
 }
 
+.op74-fmp-track-button.is-overflowing.is-playing .op74-fmp-track-name,
 .op74-fmp-track-button.is-overflowing:hover .op74-fmp-track-name,
 .op74-fmp-track-button.is-overflowing:focus-visible .op74-fmp-track-name {
   animation: op74-fmp-track-marquee var(--op74-fmp-track-duration, 8s) ease-in-out infinite alternate;
@@ -2926,12 +5676,89 @@
 
 @media (max-width: 360px) {
   .op74-fmp-panel,
+  .op74-fmp-encyclopedia,
+  .op74-fmp-people,
+  .op74-fmp-chronicle,
   .op74-fmp-map {
     width: calc(100vw - 16px);
   }
 }
 
+@media (max-width: 520px) {
+  .op74-fmp-chronicle-index {
+    grid-template-columns: 1fr;
+  }
+
+  .op74-fmp-chronicle-entry-name-ru {
+    font-size: 15px;
+  }
+
+  .op74-fmp-chronicle-spoiler-button {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .op74-fmp-encyclopedia {
+    grid-template-rows: 64px minmax(0, 1fr);
+    border-radius: 18px;
+  }
+
+  .op74-fmp-encyclopedia-toolbar {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 7px;
+    padding: 7px 8px;
+  }
+
+  .op74-fmp-encyclopedia-title {
+    align-items: center;
+    flex-direction: row;
+    justify-content: center;
+    gap: 7px;
+  }
+
+  .op74-fmp-encyclopedia-title-main {
+    font-size: 17px;
+    letter-spacing: 0.12em;
+  }
+
+  .op74-fmp-encyclopedia-title-country {
+    width: 100%;
+    gap: 4px;
+    font-size: 8px;
+  }
+
+  .op74-fmp-encyclopedia-scroll {
+    margin: 9px 7px 9px 10px;
+    padding-right: 6px;
+  }
+
+  .op74-fmp-encyclopedia-category {
+    grid-template-columns: 44px minmax(0, 1fr);
+    min-height: 62px;
+  }
+
+  .op74-fmp-encyclopedia-category-copy {
+    padding: 10px 11px;
+  }
+
+  .op74-fmp-encyclopedia-category-title {
+    font-size: 14px;
+  }
+
+  .op74-fmp-encyclopedia-entry-summary {
+    grid-template-columns: 48px minmax(0, 1fr) 26px;
+  }
+
+  .op74-fmp-encyclopedia-entry-body {
+    padding: 14px 14px 16px;
+  }
+}
+
 @media (max-height: 480px) {
+  .op74-fmp-encyclopedia {
+    height: min(394px, calc(100dvh - 16px));
+  }
+
   .op74-fmp-album-frame {
     aspect-ratio: 16 / 5;
   }
